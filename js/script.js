@@ -50,6 +50,233 @@ function nextIp(type) {
     if (type === "router") return "192.168.1.1";
     return "192.168.1." + (ipSeq++);
 }
+function genMac() {
+    const h = () => Math.floor(Math.random() * 256).toString(16).padStart(2, "0").toUpperCase();
+    return `02:${h()}:${h()}:${h()}:${h()}:${h()}`;
+}
+/* AP: txPower (dBm) -> radio en px. Clamp 60..480.
+   18 dBm ≈ 215 px (cercano al rango actual por defecto). */
+function apRange(d) {
+    const tx = (d && typeof d.txPower === "number") ? d.txPower : 18;
+    return Math.max(60, Math.min(480, Math.round(10 * tx + 35)));
+}
+/* RSSI estimado (dBm) entre device y AP a partir de la distancia. Modelo simple log-distance. */
+function estRssi(distPx, txPower) {
+    const d = Math.max(1, distPx);
+    return Math.round(txPower - 35 - 22 * Math.log10(d / 10));
+}
+
+/* ============================ DEFAULTS ============================ */
+const DEFAULT_DNS = ["8.8.8.8", "1.1.1.1"];
+const DEFAULT_SSID = "NetForge-WiFi";
+const DEFAULT_WIFI_PASS = "netforge123";
+const PORT_SPEEDS = ["100M", "1G", "2.5G", "10G"];
+const DUPLEX = ["full", "half"];
+const SECURITY_OPTIONS = ["Abierta", "WPA2", "WPA3", "WPA2/WPA3"];
+const BANDS = ["2.4GHz", "5GHz", "6GHz"];
+const CHANNEL_WIDTHS = [20, 40, 80, 160];
+
+function makeSwitchPorts(n) {
+    const ports = [];
+    for (let i = 1; i <= n; i++) {
+        ports.push({ n: i, vlan: 1, mode: "access", speed: "1G", duplex: "full", poe: false });
+    }
+    return ports;
+}
+
+/* Devuelve un objeto con TODOS los campos extendidos para un tipo dado.
+   Se mezcla sobre la base mínima ya creada en addDevice (id, type, name, ip, x, y, on). */
+function defaultsFor(type) {
+    const base = {
+        hostname: "",
+        mac: genMac(),
+        ipMode: "static",
+        mask: "255.255.255.0",
+        gateway: "192.168.1.1",
+        dns: [...DEFAULT_DNS],
+        mtu: 1500
+    };
+    switch (type) {
+        case "internet":
+            return {
+                hostname: "internet",
+                mac: "",
+                ipMode: "static",
+                mask: "",
+                gateway: "",
+                dns: [],
+                mtu: 1500,
+                latencyBase: 20,
+                jitter: 5,
+                loss: 0.5,
+                publicBlock: "8.8.8.0/24"
+            };
+        case "router":
+            return {
+                ...base,
+                gateway: "",
+                interfaces: [
+                    { name: "WAN", type: "wan", ip: "(DHCP)", mask: "" },
+                    { name: "LAN", type: "lan", ip: "192.168.1.1", mask: "255.255.255.0" }
+                ],
+                routes: [],
+                defaultRoute: "0.0.0.0/0 via WAN",
+                nat: true,
+                dhcp: {
+                    enabled: true,
+                    rangeStart: "192.168.1.100",
+                    rangeEnd: "192.168.1.200",
+                    leaseHours: 24,
+                    reservations: []
+                },
+                dnsForwarder: true,
+                acl: []
+            };
+        case "switch":
+            return {
+                ...base,
+                gateway: "",
+                portCount: 8,
+                ports: makeSwitchPorts(8),
+                vlans: [{ id: 1, name: "default" }],
+                nativeVlan: 1,
+                stp: true
+            };
+        case "firewall":
+            return {
+                ...base,
+                zones: [
+                    { name: "inside", trust: "high" },
+                    { name: "outside", trust: "low" },
+                    { name: "dmz", trust: "medium" }
+                ],
+                rules: [
+                    { n: 1, src: "inside", dst: "outside", port: "any", proto: "any", action: "permit" },
+                    { n: 2, src: "outside", dst: "inside", port: "any", proto: "any", action: "deny" }
+                ],
+                stateful: true,
+                nat: true,
+                vpn: []
+            };
+        case "ap":
+            return {
+                ...base,
+                ssid: DEFAULT_SSID,
+                security: "WPA2",
+                password: DEFAULT_WIFI_PASS,
+                band: "2.4GHz",
+                channel: 6,
+                channelWidth: 20,
+                txPower: 18,
+                hidden: false,
+                macFilter: [],
+                guestSsid: "",
+                vlan: 1
+            };
+        case "server":
+            return {
+                ...base,
+                services: [
+                    { name: "HTTP", port: 80, proto: "tcp", enabled: true },
+                    { name: "HTTPS", port: 443, proto: "tcp", enabled: false },
+                    { name: "DNS", port: 53, proto: "udp", enabled: false },
+                    { name: "DHCP", port: 67, proto: "udp", enabled: false },
+                    { name: "FTP", port: 21, proto: "tcp", enabled: false },
+                    { name: "SMTP", port: 25, proto: "tcp", enabled: false },
+                    { name: "DB", port: 3306, proto: "tcp", enabled: false },
+                    { name: "Files", port: 445, proto: "tcp", enabled: false }
+                ]
+            };
+        case "pc":
+        case "printer":
+            return {
+                ...base,
+                ipMode: "dhcp",
+                exposedPorts: type === "printer"
+                    ? [{ name: "IPP", port: 631, proto: "tcp", enabled: true }]
+                    : []
+            };
+        case "laptop":
+        case "phone":
+        case "camera":
+            return {
+                ...base,
+                ipMode: "dhcp",
+                wifiSsid: DEFAULT_SSID,
+                wifiPassword: DEFAULT_WIFI_PASS,
+                exposedPorts: type === "camera"
+                    ? [{ name: "RTSP", port: 554, proto: "tcp", enabled: true }]
+                    : []
+            };
+    }
+    return base;
+}
+function defaultsForLink(kind) {
+    return {
+        bandwidthMbps: 1000,
+        latencyMs: kind === "wireless" ? 4 : 1,
+        lossPct: 0,
+        mtu: 1500
+    };
+}
+
+/* ============================ PORT / ZONE ASSIGNMENT ============================ */
+function nextFreeSwitchPort(switchDev, ignoreLinkId) {
+    const used = new Set();
+    for (const l of links) {
+        if (l.id === ignoreLinkId) continue;
+        if (l.from === switchDev.id && l.portFrom) used.add(l.portFrom);
+        if (l.to === switchDev.id && l.portTo) used.add(l.portTo);
+    }
+    const total = switchDev.portCount || (switchDev.ports || []).length || 8;
+    for (let i = 1; i <= total; i++) if (!used.has(i)) return i;
+    return total;
+}
+function nextFwZone(fwDev, ignoreLinkId, peerDev) {
+    const zones = fwDev.zones || [];
+    if (!zones.length) return "inside";
+    const counts = {};
+    zones.forEach(z => counts[z.name] = 0);
+    for (const l of links) {
+        if (l.id === ignoreLinkId) continue;
+        if (l.from === fwDev.id && l.zoneFrom != null) counts[l.zoneFrom] = (counts[l.zoneFrom] || 0) + 1;
+        if (l.to === fwDev.id && l.zoneTo != null) counts[l.zoneTo] = (counts[l.zoneTo] || 0) + 1;
+    }
+    /* Heurística semántica: Internet → menor confianza (low/outside). Resto → alta. */
+    if (peerDev) {
+        const wantTrust = peerDev.type === "internet" ? "low" : "high";
+        const semantic = zones.find(z => z.trust === wantTrust);
+        if (semantic && counts[semantic.name] === 0) return semantic.name;
+    }
+    /* Fallback: zona menos usada respetando orden de definición. */
+    let best = zones[0].name, bestC = counts[zones[0].name];
+    for (const z of zones) {
+        if (counts[z.name] < bestC) { bestC = counts[z.name]; best = z.name; }
+    }
+    return best;
+}
+/* Asigna metadata extra del enlace en sus extremos: puerto del switch o zona del firewall. */
+function assignLinkMeta(l) {
+    const a = byId(l.from), b = byId(l.to);
+    if (a && a.type === "switch" && !l.portFrom) l.portFrom = nextFreeSwitchPort(a, l.id);
+    if (b && b.type === "switch" && !l.portTo) l.portTo = nextFreeSwitchPort(b, l.id);
+    if (a && a.type === "firewall" && !l.zoneFrom) l.zoneFrom = nextFwZone(a, l.id, b);
+    if (b && b.type === "firewall" && !l.zoneTo) l.zoneTo = nextFwZone(b, l.id, a);
+}
+/* Devuelve el objeto puerto del switch que usa este enlace (o null). */
+function portOnSwitch(link, switchId) {
+    const sw = byId(switchId);
+    if (!sw || sw.type !== "switch" || !sw.ports) return null;
+    const n = link.from === switchId ? link.portFrom : (link.to === switchId ? link.portTo : null);
+    if (!n) return null;
+    return sw.ports.find(p => p.n === n) || null;
+}
+/* Devuelve la zona del firewall por la que entra/sale este enlace. */
+function zoneOnFw(link, fwId) {
+    if (link.from === fwId) return link.zoneFrom;
+    if (link.to === fwId) return link.zoneTo;
+    return null;
+}
 function endpoints(a, b) {
     const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1, r = 35;
     return { x1: a.x + dx / d * r, y1: a.y + dy / d * r, x2: b.x - dx / d * r, y2: b.y - dy / d * r };
@@ -207,10 +434,14 @@ function startPaletteDrag(e, type) {
 
 /* ============================ DEVICES ============================ */
 function addDevice(type, x, y, select) {
+    const name = nextName(type);
     const d = {
-        id: "d" + (idSeq++), type, name: nextName(type), ip: nextIp(type),
-        x: Math.round(x), y: Math.round(y), on: true, range: type === "ap" ? 200 : 0
+        id: "d" + (idSeq++), type, name, ip: nextIp(type),
+        x: Math.round(x), y: Math.round(y), on: true,
+        ...defaultsFor(type)
     };
+    d.hostname = name.toLowerCase().replace(/\s+/g, "-");
+    if (type === "ap") d.range = apRange(d);
     devices.push(d);
     createNode(d);
     d._el.classList.add("spawn");
@@ -313,8 +544,10 @@ function createLink(a, b) {
     if (links.some(l => (l.from === a.id && l.to === b.id) || (l.from === b.id && l.to === a.id))) {
         toast("Esos dispositivos ya están conectados", "info"); return;
     }
-    const l = { id: "l" + (idSeq++), from: a.id, to: b.id, kind: linkKind(a, b), status: "up", bw: "1 Gbps" };
+    const kind = linkKind(a, b);
+    const l = { id: "l" + (idSeq++), from: a.id, to: b.id, kind, status: "up", ...defaultsForLink(kind) };
     links.push(l);
+    assignLinkMeta(l);
     log("Conexión creada: " + a.name + " <-> " + b.name + " (" + (l.kind === "wireless" ? "WiFi" : "cable") + ")", "info");
     refreshGeom();
     selection = { kind: "link", id: l.id }; renderInspector();
@@ -332,9 +565,9 @@ function wirelessOk(l) {
     const a = byId(l.from), b = byId(l.to);
     if (!a || !b) return false;
     let range = 220;
-    if (a.type === "ap" && b.type === "ap") range = Math.max(a.range, b.range);
-    else if (a.type === "ap") range = a.range;
-    else if (b.type === "ap") range = b.range;
+    if (a.type === "ap" && b.type === "ap") range = Math.max(apRange(a), apRange(b));
+    else if (a.type === "ap") range = apRange(a);
+    else if (b.type === "ap") range = apRange(b);
     return dist(a, b) <= range;
 }
 
@@ -362,6 +595,7 @@ function syncWifi() {
     const have = new Set();
     devices.filter(d => d.type === "ap").forEach(d => {
         have.add(d.id);
+        d.range = apRange(d);
         let g = wifiLayer.querySelector('[data-wifi="' + d.id + '"]');
         if (!g) {
             g = svgEl("g"); g.setAttribute("data-wifi", d.id);
@@ -406,7 +640,7 @@ function fitView() {
     if (!devices.length) { view.x = 0; view.y = 0; view.scale = 1; applyView(); return; }
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     devices.forEach(d => {
-        const p = d.type === "ap" ? d.range + 40 : 70;
+        const p = d.type === "ap" ? apRange(d) + 40 : 70;
         minX = Math.min(minX, d.x - p); maxX = Math.max(maxX, d.x + p);
         minY = Math.min(minY, d.y - p); maxY = Math.max(maxY, d.y + p);
     });
@@ -481,44 +715,226 @@ function setHint() {
     hintText.textContent = t;
 }
 
-/* ============================ SIMULATION ============================ */
-function neighbors(id) {
-    const r = [];
-    for (const l of links) {
-        if (l.status !== "up") continue;
-        if (l.kind === "wireless" && !wirelessOk(l)) continue;
-        let o = null;
-        if (l.from === id) o = l.to; else if (l.to === id) o = l.from; else continue;
-        const od = byId(o);
-        if (!od || !od.on) continue;
-        r.push({ node: o, link: l });
-    }
-    return r;
+/* ============================ SIMULATION — FEASIBILITY ============================ */
+/* Helpers de IP / subred (modelo simple IPv4). */
+function ipToInt(ip) {
+    const parts = String(ip || "").split(".").map(n => parseInt(n, 10));
+    if (parts.length !== 4 || parts.some(n => isNaN(n) || n < 0 || n > 255)) return null;
+    return ((parts[0] << 24) | (parts[1] << 16) | (parts[2] << 8) | parts[3]) >>> 0;
 }
-function findPath(s, t) {
-    const prev = {};
-    const visited = new Set([s]);
-    const q = [s];
-    prev[s] = null;
-    while (q.length) {
-        const cur = q.shift();
-        if (cur === t) {
-            const path = []; let n = t;
-            while (n != null) {
-                path.unshift({ id: n, via: prev[n] ? prev[n].link : null });
-                n = prev[n] ? prev[n].node : null;
-            }
-            return path;
-        }
-        for (const nb of neighbors(cur)) {
-            if (!visited.has(nb.node)) {
-                visited.add(nb.node);
-                prev[nb.node] = { node: cur, link: nb.link };
-                q.push(nb.node);
-            }
-        }
+function sameSubnet(ipA, ipB, mask) {
+    const a = ipToInt(ipA), b = ipToInt(ipB), m = ipToInt(mask);
+    if (a == null || b == null || m == null) return false;
+    return (a & m) === (b & m);
+}
+
+/* Para WiFi: factores de degradación según RSSI. */
+function wirelessPenalty(link) {
+    if (link.kind !== "wireless") return { latencyAdd: 0, lossAdd: 0, rssi: null };
+    const a = byId(link.from), b = byId(link.to);
+    const ap = a && a.type === "ap" ? a : (b && b.type === "ap" ? b : null);
+    if (!ap) return { latencyAdd: 0, lossAdd: 0, rssi: null };
+    const other = ap === a ? b : a;
+    const rssi = estRssi(dist(ap, other), ap.txPower || 18);
+    const latencyAdd = Math.max(0, (-65 - rssi) * 0.5);
+    const lossAdd = Math.max(0, (-65 - rssi) * 1.5);
+    return { latencyAdd, lossAdd, rssi };
+}
+
+/* Determina si un dispositivo final satisface la asociación al AP en este enlace WiFi. */
+function wifiAssociation(link) {
+    if (link.kind !== "wireless") return { ok: true };
+    const a = byId(link.from), b = byId(link.to);
+    const ap = a && a.type === "ap" ? a : (b && b.type === "ap" ? b : null);
+    if (!ap) return { ok: true };
+    const cli = ap === a ? b : a;
+    if (!cli) return { ok: true };
+    if (!["laptop", "phone", "camera"].includes(cli.type)) return { ok: true };
+    if ((cli.wifiSsid || "") !== (ap.ssid || "")) {
+        return { ok: false, reason: `WiFi: ${cli.name} busca SSID '${cli.wifiSsid || ""}' pero ${ap.name} emite '${ap.ssid || ""}'` };
+    }
+    if (ap.security !== "Abierta" && (cli.wifiPassword || "") !== (ap.password || "")) {
+        return { ok: false, reason: `WiFi: contraseña incorrecta de ${cli.name} para '${ap.ssid}'` };
+    }
+    if ((ap.macFilter || []).length > 0 && !ap.macFilter.includes(cli.mac)) {
+        return { ok: false, reason: `WiFi: filtrado MAC bloquea a ${cli.name} en ${ap.name}` };
+    }
+    return { ok: true };
+}
+
+/* Razón por la que un edge no se puede atravesar (o null si OK).
+   No considera VLAN aquí — eso lo hace findPath en el BFS con contexto. */
+function edgeBlock(link) {
+    if (link.status !== "up") return "Enlace caído";
+    const a = byId(link.from), b = byId(link.to);
+    if (!a || !b) return "Nodo desconocido";
+    if (!a.on) return `${a.name} apagado`;
+    if (!b.on) return `${b.name} apagado`;
+    if (link.kind === "wireless") {
+        if (!wirelessOk(link)) return `Fuera de cobertura WiFi (${a.name}↔${b.name})`;
+        const ass = wifiAssociation(link);
+        if (!ass.ok) return ass.reason;
     }
     return null;
+}
+
+/* ============================ SIMULATION — PATHFINDING (VLAN-aware) ============================ */
+/* BFS con estado (nodo, vlanCtx). vlanCtx solo se aplica al "pasar a través" de un switch:
+   - entrar a un switch por puerto access → ctx = vlan del puerto
+   - entrar a un switch por puerto trunk  → ctx se preserva (carry-all)
+   - salir del switch por puerto access  → debe coincidir con ctx
+   - salir por trunk                     → ctx se preserva
+   Routers, firewalls y APs son "L3" en este modelo y reinician el ctx. */
+function findPath(s, t) {
+    const startKey = s + "|"; // ctx vacío = sin VLAN
+    const visited = new Set([startKey]);
+    const prev = { [startKey]: null };
+    const q = [{ node: s, ctx: "" }];
+
+    while (q.length) {
+        const cur = q.shift();
+        if (cur.node === t) {
+            const path = [];
+            let key = cur.node + "|" + cur.ctx;
+            let nodeId = cur.node;
+            while (true) {
+                const p = prev[key];
+                if (p == null) { path.unshift({ id: nodeId, via: null }); break; }
+                path.unshift({ id: nodeId, via: p.link });
+                key = p.node + "|" + p.ctx;
+                nodeId = p.node;
+            }
+            return { ok: true, path };
+        }
+        const curDev = byId(cur.node);
+        if (!curDev) continue;
+
+        for (const l of links) {
+            const oId = l.from === cur.node ? l.to : (l.to === cur.node ? l.from : null);
+            if (!oId) continue;
+            if (edgeBlock(l)) continue;
+            const oDev = byId(oId);
+            if (!oDev) continue;
+
+            /* VLAN: salida del switch actual (si curDev es switch). */
+            let newCtx = cur.ctx;
+            if (curDev.type === "switch") {
+                const exitPort = portOnSwitch(l, curDev.id);
+                if (exitPort) {
+                    if (exitPort.mode === "access") {
+                        if (cur.ctx && cur.ctx !== String(exitPort.vlan)) continue; /* mismatch */
+                        /* sin ctx previo: viene de un dispositivo "limpio", se asume que entró sin VLAN */
+                        if (!cur.ctx) { /* salida implica este puerto access; el contexto se "consume" */ }
+                    }
+                    /* trunk: carry-all, no bloquea */
+                }
+            } else if (curDev.type === "router" || curDev.type === "firewall") {
+                /* L3 boundary: reset */
+                newCtx = "";
+            }
+
+            /* VLAN: entrada al siguiente nodo si es un switch. */
+            if (oDev.type === "switch") {
+                const entryPort = portOnSwitch(l, oDev.id);
+                if (entryPort) {
+                    if (entryPort.mode === "access") newCtx = String(entryPort.vlan);
+                    /* trunk: ctx se preserva */
+                }
+            } else if (oDev.type === "router" || oDev.type === "firewall" || oDev.type === "ap") {
+                newCtx = "";
+            } else {
+                /* dispositivo final: ctx ya no relevante */
+                newCtx = "";
+            }
+
+            const key = oId + "|" + newCtx;
+            if (visited.has(key)) continue;
+            visited.add(key);
+            prev[key] = { node: cur.node, ctx: cur.ctx, link: l };
+            q.push({ node: oId, ctx: newCtx });
+        }
+    }
+    return { ok: false };
+}
+
+/* ============================ SIMULATION — POLICY CHECKS ============================ */
+/* Comprueba reglas de firewall sobre un path. Devuelve {ok:true} o {ok:false, reason, atIndex}.
+   Para cada hop entrante a un firewall, la zona de origen es la del enlace de llegada;
+   la zona de destino se determina por el siguiente enlace que sale del firewall.
+   Si el firewall es el destino final, no se evalúa. */
+function evalFirewall(path) {
+    for (let i = 1; i < path.length - 1; i++) {
+        const dev = byId(path[i].id);
+        if (!dev || dev.type !== "firewall") continue;
+        const inLink = path[i].via;        // enlace por el que entra
+        const outLink = path[i + 1].via;   // enlace por el que sale
+        if (!inLink || !outLink) continue;
+        const srcZone = zoneOnFw(inLink, dev.id) || "any";
+        const dstZone = zoneOnFw(outLink, dev.id) || "any";
+        const rules = dev.rules || [];
+        let matched = null;
+        for (let r = 0; r < rules.length; r++) {
+            const ru = rules[r];
+            const sm = ru.src === "any" || ru.src === srcZone;
+            const dm = ru.dst === "any" || ru.dst === dstZone;
+            if (sm && dm) { matched = { rule: ru, idx: r + 1 }; break; }
+        }
+        if (matched && matched.rule.action === "deny") {
+            return {
+                ok: false,
+                reason: `Firewall ${dev.name} regla #${matched.idx} deny: ${srcZone} → ${dstZone}`,
+                atIndex: i
+            };
+        }
+        if (!matched && (rules.length > 0)) {
+            /* política implícita: con reglas pero sin match, denegar. */
+            return {
+                ok: false,
+                reason: `Firewall ${dev.name}: sin regla para ${srcZone} → ${dstZone} (deny implícito)`,
+                atIndex: i
+            };
+        }
+    }
+    return { ok: true };
+}
+
+/* Comprueba que el origen tenga gateway útil cuando destino está en otra subred.
+   Solo se evalúa si ambos extremos tienen IP+máscara concretos. */
+function evalGateway(src, dst) {
+    if (src.type === "internet" || dst.type === "internet") return { ok: true };
+    if (!src.mask || !dst.mask || !src.ip || !dst.ip) return { ok: true };
+    if (sameSubnet(src.ip, dst.ip, src.mask)) return { ok: true };
+    /* Distintas subredes: src necesita gateway en SU subred. */
+    if (!src.gateway) {
+        return { ok: false, reason: `Sin puerta de enlace en ${src.name} (destino en otra subred)` };
+    }
+    if (!sameSubnet(src.ip, src.gateway, src.mask)) {
+        return { ok: false, reason: `Gateway de ${src.name} (${src.gateway}) no pertenece a su subred` };
+    }
+    return { ok: true };
+}
+
+/* ============================ SIMULATION — HOP METRICS ============================ */
+function hopLatencyMs(link, fromId, toId) {
+    let lat = (link.latencyMs || 0);
+    lat += Math.random() * (lat * 0.3 + 0.4); /* jitter base */
+    const w = wirelessPenalty(link);
+    lat += w.latencyAdd;
+    /* Internet base latency en cualquiera de los extremos */
+    const a = byId(fromId), b = byId(toId);
+    if (a && a.type === "internet") lat += (a.latencyBase || 0) + Math.random() * (a.jitter || 0);
+    if (b && b.type === "internet") lat += (b.latencyBase || 0) + Math.random() * (b.jitter || 0);
+    return lat;
+}
+function hopDrops(link, fromId, toId) {
+    let lossPct = link.lossPct || 0;
+    const w = wirelessPenalty(link);
+    lossPct += w.lossAdd;
+    const a = byId(fromId), b = byId(toId);
+    if (a && a.type === "internet") lossPct += (a.loss || 0);
+    if (b && b.type === "internet") lossPct += (b.loss || 0);
+    lossPct = Math.min(100, Math.max(0, lossPct));
+    return { drop: Math.random() * 100 < lossPct, lossPct };
 }
 function tween(dur, onUpdate) {
     return new Promise(res => {
@@ -550,35 +966,103 @@ function clearActive() {
 async function runSimulation(src, dst) {
     if (simRunning) return;
     clearActive();
+
     if (src.id === dst.id) {
         log("Origen y destino son el mismo dispositivo.", "error");
         toast("Selecciona dos dispositivos distintos", "error"); return;
     }
     if (!src.on || !dst.on) {
-        log("Simulación fallida: " + (!src.on ? src.name : dst.name) + " está apagado.", "error");
-        toast("Un dispositivo está apagado", "error"); return;
+        const off = !src.on ? src : dst;
+        log("Simulación fallida: " + off.name + " está apagado.", "error");
+        toast(off.name + " está apagado", "error"); return;
     }
-    const path = findPath(src.id, dst.id);
-    if (!path) {
-        log("PAQUETE PERDIDO — no existe ruta de " + src.name + " a " + dst.name + ".", "error");
-        toast("Paquete perdido: sin ruta disponible", "error"); return;
+
+    /* 1) Pre-flight de gateway/subred. */
+    const gw = evalGateway(src, dst);
+    if (!gw.ok) {
+        log("PAQUETE PERDIDO — " + gw.reason, "error");
+        toast(gw.reason, "error");
+        return;
     }
+
+    /* 2) Path con feasibility (enlaces caídos, WiFi auth, VLAN). */
+    const pf = findPath(src.id, dst.id);
+    if (!pf.ok) {
+        const reason = diagnoseNoPath(src, dst);
+        log("PAQUETE PERDIDO — " + reason, "error");
+        toast(reason, "error");
+        return;
+    }
+    const path = pf.path;
+
+    /* 3) Reglas de firewall sobre el path. */
+    const fw = evalFirewall(path);
+    /* Si hay denegación, animaremos hasta el firewall y ahí caemos. */
+
     simRunning = true; setHint();
-    log("Enviando paquete: " + src.name + " -> " + dst.name + " (" + (path.length - 1) + " saltos)", "info");
-    let latency = 0;
+    log(`Enviando paquete: ${src.name} → ${dst.name} (${path.length - 1} saltos)`, "info");
+
+    let totalLat = 0;
     for (let i = 0; i < path.length - 1; i++) {
-        const a = byId(path[i].id), b = byId(path[i + 1].id), link = path[i + 1].via;
+        const a = byId(path[i].id);
+        const b = byId(path[i + 1].id);
+        const link = path[i + 1].via;
         const el = document.querySelector('[data-linkv="' + link.id + '"]');
         if (el) el.classList.add("active");
-        const hop = link.kind === "wireless" ? 6 + Math.random() * 11 : 1 + Math.random() * 4;
-        latency += hop;
-        log("  " + a.name + " -> " + b.name + "  [" + (link.kind === "wireless" ? "WiFi" : "cable") + ", " + hop.toFixed(1) + " ms]", "muted");
+
+        /* Si el firewall en el siguiente nodo deniega, animamos hasta él y cortamos. */
+        const blockHere = (!fw.ok && fw.atIndex === i + 1);
+
+        const lat = hopLatencyMs(link, a.id, b.id);
+        const { drop, lossPct } = hopDrops(link, a.id, b.id);
+        totalLat += lat;
+
+        const tag = link.kind === "wireless" ? "WiFi" : "cable";
+        const detail = `[${tag}, ${lat.toFixed(1)} ms` + (lossPct > 0.5 ? `, ~${lossPct.toFixed(1)}% loss` : "") + "]";
+        log(`  ${a.name} → ${b.name}  ${detail}`, drop || blockHere ? "warn" : "muted");
+
         await animatePacket(a, b, link.kind);
+
+        if (blockHere) {
+            simRunning = false; setHint();
+            log("BLOQUEADO POR FIREWALL — " + fw.reason, "error");
+            toast(fw.reason, "error");
+            setTimeout(clearActive, 900);
+            return;
+        }
+        if (drop) {
+            simRunning = false; setHint();
+            const why = link.kind === "wireless"
+                ? `Paquete perdido en ${a.name}→${b.name} (RSSI bajo, ${lossPct.toFixed(1)}% pérdida)`
+                : `Paquete perdido en ${a.name}→${b.name} (${lossPct.toFixed(1)}% pérdida)`;
+            log("PAQUETE PERDIDO — " + why, "error");
+            toast(why, "error");
+            setTimeout(clearActive, 900);
+            return;
+        }
     }
     simRunning = false; setHint();
-    log("PAQUETE ENTREGADO — " + (path.length - 1) + " saltos, latencia total ~" + latency.toFixed(1) + " ms.", "success");
+    log(`PAQUETE ENTREGADO — ${path.length - 1} saltos, latencia total ~${totalLat.toFixed(1)} ms.`, "success");
     toast("Paquete entregado correctamente", "success");
     setTimeout(clearActive, 900);
+}
+
+/* Cuando no hay path, intenta dar una explicación útil revisando los enlaces incidentes
+   al origen y destino: ¿están todos caídos?, ¿WiFi mal asociado?, ¿alcance?, etc. */
+function diagnoseNoPath(src, dst) {
+    const issues = [];
+    for (const l of links) {
+        if (l.from !== src.id && l.to !== src.id && l.from !== dst.id && l.to !== dst.id) continue;
+        const reason = edgeBlock(l);
+        if (reason) issues.push(reason);
+    }
+    if (issues.length) {
+        /* eliminar duplicados */
+        const uniq = [...new Set(issues)];
+        return `Sin ruta de ${src.name} a ${dst.name}. ` + uniq.slice(0, 2).join(" · ");
+    }
+    /* Posible VLAN mismatch o aislamiento por políticas. */
+    return `Sin ruta de ${src.name} a ${dst.name} (revisa VLANs, conexiones y enlaces).`;
 }
 
 /* ============================ INSPECTOR ============================ */
@@ -616,50 +1100,96 @@ function emptyInspector() {
     ${leg}
   </div>`;
 }
+/* ---------- Pestañas por tipo ---------- */
+const TABS_BY_TYPE = {
+    internet: [["red", "Red"], ["status", "Estado"]],
+    router: [["general", "General"], ["net", "Red"], ["dhcp", "DHCP"], ["adv", "Avanzado"]],
+    switch: [["general", "General"], ["ports", "Puertos"], ["vlan", "VLAN"], ["adv", "Avanzado"]],
+    firewall: [["general", "General"], ["zones", "Zonas"], ["rules", "Reglas"], ["adv", "Avanzado"]],
+    ap: [["general", "General"], ["wifi", "WiFi"], ["radio", "Radio"], ["sec", "Seguridad"]],
+    server: [["general", "General"], ["red", "Red"], ["svc", "Servicios"], ["status", "Estado"]],
+    pc: [["general", "General"], ["red", "Red"], ["svc", "Servicios"]],
+    laptop: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["svc", "Servicios"]],
+    phone: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["svc", "Servicios"]],
+    camera: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["svc", "Servicios"]],
+    printer: [["general", "General"], ["red", "Red"], ["svc", "Servicios"]]
+};
+const inspState = {}; // recuerda la pestaña activa por id de dispositivo
+
 function deviceInspector(d) {
     const T = TYPES[d.type];
-    const conns = links.filter(l => l.from === d.id || l.to === d.id).length;
-    inspector.innerHTML = `
-    <div class="insp-head">
-      <div class="insp-ico" style="background:${hexA(T.color, .13)};border:1px solid ${hexA(T.color, .4)}"><canvas id="iCv"></canvas></div>
-      <div><div class="t1">${T.label}</div><div class="t2">ID ${d.id}</div></div>
-    </div>
-    <div class="field"><label>Nombre</label><input type="text" id="fName" value="${esc(d.name)}"></div>
-    <div class="field"><label>Dirección IP</label><input type="text" class="mono" id="fIp" value="${esc(d.ip)}"></div>
-    <div class="field"><label>Estado</label>
-      <div class="switch"><span>${d.on ? "En línea" : "Apagado"}</span>
-      <button class="toggle ${d.on ? "on" : ""}" id="fOn"></button></div>
-    </div>
-    ${d.type === "ap" ? `<div class="field"><label>Alcance WiFi</label>
-      <div class="slider-row">
-        <input type="range" id="fRange" min="90" max="420" value="${d.range}">
-        <span class="rng-val" id="rVal">${d.range} px</span>
-      </div></div>`: ""}
-    <div class="metabox">
-      <div class="ml"><span>Conexiones</span><b>${conns}</b></div>
-      <div class="ml"><span>Posición</span><b>${Math.round(d.x)}, ${Math.round(d.y)}</b></div>
-      <div class="ml"><span>Inalámbrico</span><b>${T.wireless ? "Sí" : "No"}</b></div>
-    </div>
-    <button class="del-btn" id="fDel">Eliminar dispositivo</button>`;
-    paintCanvas($("#iCv"), d.type, 28);
-    $("#fName").addEventListener("input", e => { d.name = e.target.value; updateNode(d); autosave(); });
-    $("#fIp").addEventListener("input", e => { d.ip = e.target.value; updateNode(d); autosave(); });
-    $("#fOn").addEventListener("click", () => {
-        d.on = !d.on; updateNode(d); refreshGeom(); renderInspector();
-        log(d.name + (d.on ? " encendido" : " apagado"), "warn"); autosave();
-    });
-    if (d.type === "ap") {
-        $("#fRange").addEventListener("input", e => {
-            d.range = +e.target.value; $("#rVal").textContent = d.range + " px";
-            refreshGeom(); autosave();
-        });
+    const tabs = TABS_BY_TYPE[d.type] || [["general", "General"]];
+    const cur = inspState[d.id] && tabs.some(t => t[0] === inspState[d.id]) ? inspState[d.id] : tabs[0][0];
+    const head = `
+      <div class="insp-head">
+        <div class="insp-ico" style="background:${hexA(T.color, .13)};border:1px solid ${hexA(T.color, .4)}"><canvas id="iCv"></canvas></div>
+        <div><div class="t1">${esc(d.name)}</div><div class="t2">${T.label} · ID ${d.id}</div></div>
+      </div>`;
+    const tabBar = `<div class="tabs">${tabs.map(([k, lb]) =>
+        `<button class="tab ${k === cur ? "active" : ""}" data-tab="${k}">${lb}</button>`).join("")}</div>`;
+    let body = "";
+    for (const [k] of tabs) {
+        const cls = "tab-body" + (k === cur ? "" : " hidden");
+        body += `<div class="${cls}" data-tb="${k}">${renderTab(d, k)}</div>`;
     }
+    const footer = `<div class="section-divider"></div>
+      <button class="del-btn" id="fDel">Eliminar dispositivo</button>`;
+    inspector.innerHTML = head + tabBar + body + footer;
+
+    paintCanvas($("#iCv"), d.type, 28);
+    inspector.querySelectorAll(".tab").forEach(b => {
+        b.onclick = () => {
+            inspState[d.id] = b.dataset.tab;
+            inspector.querySelectorAll(".tab").forEach(x => x.classList.toggle("active", x === b));
+            inspector.querySelectorAll(".tab-body").forEach(x => x.classList.toggle("hidden", x.dataset.tb !== b.dataset.tab));
+        };
+    });
+    bindTabHandlers(d);
     $("#fDel").addEventListener("click", () => deleteDevice(d.id));
+}
+
+/* Dispatch del contenido de cada pestaña según el tipo. */
+function renderTab(d, tab) {
+    const t = d.type;
+    if (tab === "general") return tabGeneral(d);
+    if (tab === "status") return tabStatus(d);
+    if (tab === "red" || tab === "net") {
+        if (t === "internet") return tabInternetNet(d);
+        if (t === "router") return tabRouterNet(d);
+        return tabEndNet(d);
+    }
+    if (tab === "wifi") {
+        if (t === "ap") return tabApWifi(d);
+        return tabEndWifi(d);
+    }
+    if (tab === "radio") return tabApRadio(d);
+    if (tab === "sec") return tabApSec(d);
+    if (tab === "ports") return tabSwitchPorts(d);
+    if (tab === "vlan") return tabSwitchVlan(d);
+    if (tab === "adv") {
+        if (t === "router") return tabRouterAdv(d);
+        if (t === "switch") return tabSwitchAdv(d);
+        if (t === "firewall") return tabFirewallAdv(d);
+    }
+    if (tab === "dhcp") return tabRouterDhcp(d);
+    if (tab === "zones") return tabFwZones(d);
+    if (tab === "rules") return tabFwRules(d);
+    if (tab === "svc") return tabServices(d);
+    return "";
 }
 function linkInspector(l) {
     const a = byId(l.from), b = byId(l.to);
     const oor = l.kind === "wireless" && !wirelessOk(l);
     const dst = a && b ? Math.round(dist(a, b)) : 0;
+    let rssi = null;
+    if (l.kind === "wireless" && a && b) {
+        const ap = a.type === "ap" ? a : (b.type === "ap" ? b : null);
+        const other = ap === a ? b : a;
+        if (ap) rssi = estRssi(dist(ap, other), ap.txPower || 18);
+    }
+    const rssiClass = rssi == null ? "" : (rssi >= -65 ? "ok" : rssi >= -78 ? "warn" : "err");
+    const rssiLabel = rssi == null ? "N/A" : (rssi >= -65 ? "Excelente" : rssi >= -78 ? "Aceptable" : "Pobre");
+
     inspector.innerHTML = `
     <div class="insp-head">
       <div class="insp-ico" style="background:${hexA("#22d3ee", .13)};border:1px solid ${hexA("#22d3ee", .4)}">
@@ -667,27 +1197,59 @@ function linkInspector(l) {
       </div>
       <div><div class="t1">Conexión</div><div class="t2">${a ? esc(a.name) : "?"} &harr; ${b ? esc(b.name) : "?"}</div></div>
     </div>
+
     <div class="field"><label>Tipo de enlace</label>
       <select id="fKind">
         <option value="wired" ${l.kind === "wired" ? "selected" : ""}>Cable Ethernet</option>
         <option value="wireless" ${l.kind === "wireless" ? "selected" : ""}>Inalámbrico (WiFi)</option>
       </select></div>
-    <div class="field"><label>Ancho de banda</label>
-      <select id="fBw">
-        ${["100 Mbps", "1 Gbps", "2.5 Gbps", "10 Gbps"].map(o => `<option ${l.bw === o ? "selected" : ""}>${o}</option>`).join("")}
-      </select></div>
+
     <div class="field"><label>Estado del enlace</label>
       <div class="switch"><span>${l.status === "up" ? "Activo" : "Caído"}</span>
       <button class="toggle ${l.status === "up" ? "on" : ""}" id="fStatus"></button></div>
     </div>
-    <div class="metabox">
-      <div class="ml"><span>Distancia</span><b>${dst} px</b></div>
-      <div class="ml"><span>Cobertura</span><b style="color:${oor ? "var(--warn)" : "var(--ok)"}">${l.kind === "wireless" ? (oor ? "Fuera de rango" : "En rango") : "N/A (cable)"}</b></div>
+
+    <div class="row2">
+      <div class="field"><label>Ancho de banda (Mbps)</label>
+        <input type="number" min="1" step="1" id="fBw" value="${l.bandwidthMbps}"></div>
+      <div class="field"><label>MTU</label>
+        <input type="number" min="576" step="1" id="fMtu" value="${l.mtu}"></div>
     </div>
-    ${oor ? `<p class="tip" style="color:var(--warn)">Este enlace inalámbrico está fuera del alcance WiFi y no transmitirá datos. Acerca los dispositivos o aumenta el alcance del punto de acceso.</p>` : ""}
-    <button class="del-btn" id="fDelL" style="margin-top:6px">Eliminar conexión</button>`;
-    $("#fKind").addEventListener("change", e => { l.kind = e.target.value; refreshGeom(); renderInspector(); autosave(); });
-    $("#fBw").addEventListener("change", e => { l.bw = e.target.value; autosave(); });
+
+    <div class="row2">
+      <div class="field"><label>Latencia (ms)</label>
+        <input type="number" min="0" step="0.5" id="fLat" value="${l.latencyMs}"></div>
+      <div class="field"><label>Pérdida (%)</label>
+        <input type="number" min="0" max="100" step="0.1" id="fLoss" value="${l.lossPct}"></div>
+    </div>
+
+    <div class="kvbox">
+      <div class="kv"><span>Distancia</span><b>${dst} px</b></div>
+      <div class="kv"><span>Cobertura</span>
+        <b>${l.kind === "wireless"
+            ? (oor ? '<span class="badge warn">Fuera de rango</span>' : '<span class="badge ok">En rango</span>')
+            : '<span class="badge info">Cable</span>'}</b></div>
+      ${l.kind === "wireless" ? `<div class="kv"><span>RSSI</span>
+        <b>${rssi == null ? "N/A" : rssi + " dBm"} <span class="badge ${rssiClass}">${rssiLabel}</span></b></div>` : ""}
+      ${a && a.type === "switch" && l.portFrom ? `<div class="kv"><span>${esc(a.name)} puerto</span><b>${l.portFrom}</b></div>` : ""}
+      ${b && b.type === "switch" && l.portTo ? `<div class="kv"><span>${esc(b.name)} puerto</span><b>${l.portTo}</b></div>` : ""}
+      ${a && a.type === "firewall" && l.zoneFrom ? `<div class="kv"><span>${esc(a.name)} zona</span><b>${esc(l.zoneFrom)}</b></div>` : ""}
+      ${b && b.type === "firewall" && l.zoneTo ? `<div class="kv"><span>${esc(b.name)} zona</span><b>${esc(l.zoneTo)}</b></div>` : ""}
+    </div>
+
+    ${oor ? `<p class="tip" style="color:var(--warn)">Este enlace inalámbrico está fuera del alcance WiFi y no transmitirá datos. Acerca los dispositivos o aumenta la potencia del punto de acceso.</p>` : ""}
+
+    <button class="del-btn" id="fDelL">Eliminar conexión</button>`;
+
+    $("#fKind").addEventListener("change", e => {
+        l.kind = e.target.value;
+        Object.assign(l, defaultsForLink(l.kind), { bandwidthMbps: l.bandwidthMbps, mtu: l.mtu });
+        refreshGeom(); renderInspector(); autosave();
+    });
+    $("#fBw").addEventListener("input", e => { l.bandwidthMbps = +e.target.value || 1; autosave(); });
+    $("#fMtu").addEventListener("input", e => { l.mtu = +e.target.value || 1500; autosave(); });
+    $("#fLat").addEventListener("input", e => { l.latencyMs = +e.target.value || 0; autosave(); });
+    $("#fLoss").addEventListener("input", e => { l.lossPct = +e.target.value || 0; autosave(); });
     $("#fStatus").addEventListener("click", () => {
         l.status = l.status === "up" ? "down" : "up";
         refreshGeom(); renderInspector();
@@ -696,6 +1258,570 @@ function linkInspector(l) {
     $("#fDelL").addEventListener("click", () => deleteLink(l.id));
 }
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
+
+/* ============================ INSPECTOR — TAB CONTENT ============================ */
+function fld(label, inputHtml, hint) {
+    return `<div class="field"><label>${label}</label>${inputHtml}${hint ? `<div class="hint">${hint}</div>` : ""}</div>`;
+}
+function inp(id, val, mono, type) {
+    type = type || "text";
+    return `<input type="${type}" id="${id}" ${mono ? 'class="mono"' : ""} value="${esc(val == null ? "" : val)}">`;
+}
+function sel(id, opts, current) {
+    return `<select id="${id}">${opts.map(o => {
+        const v = Array.isArray(o) ? o[0] : o;
+        const lb = Array.isArray(o) ? o[1] : o;
+        return `<option value="${esc(v)}" ${String(current) === String(v) ? "selected" : ""}>${lb}</option>`;
+    }).join("")}</select>`;
+}
+function tog(id, on, label) {
+    return `<div class="switch"><span>${label || (on ? "Activo" : "Inactivo")}</span>
+        <button class="toggle ${on ? "on" : ""}" id="${id}"></button></div>`;
+}
+
+/* ---------- General (común a todos los tipos con campos comunes) ---------- */
+function tabGeneral(d) {
+    const T = TYPES[d.type];
+    let html = "";
+    html += fld("Nombre", inp("fName", d.name));
+    if (d.type !== "internet") html += fld("Hostname", inp("fHost", d.hostname, true));
+    if (d.type !== "internet") html += fld("Dirección MAC", inp("fMac", d.mac, true));
+    html += fld("Estado", tog("fOn", d.on, d.on ? "En línea" : "Apagado"));
+    return html;
+}
+
+/* ---------- Estado / metadata ---------- */
+function tabStatus(d) {
+    const T = TYPES[d.type];
+    const conns = links.filter(l => l.from === d.id || l.to === d.id).length;
+    return `<div class="kvbox">
+      <div class="kv"><span>Tipo</span><b>${T.label}</b></div>
+      <div class="kv"><span>ID</span><b>${d.id}</b></div>
+      <div class="kv"><span>Conexiones</span><b>${conns}</b></div>
+      <div class="kv"><span>Posición</span><b>${Math.round(d.x)}, ${Math.round(d.y)}</b></div>
+      <div class="kv"><span>Inalámbrico</span><b>${T.wireless ? "Sí" : "No"}</b></div>
+    </div>`;
+}
+
+/* ---------- Red para dispositivos finales y servidor ---------- */
+function tabEndNet(d) {
+    const dnsRows = (d.dns || []).map((ip, i) =>
+        `<div class="dns-row"><input class="mono" data-dns="${i}" value="${esc(ip)}"><button class="rm" data-dns-rm="${i}">×</button></div>`
+    ).join("") || `<div class="hint">Sin servidores DNS configurados.</div>`;
+    return `${fld("Modo IP", sel("fIpMode", [["dhcp", "DHCP automático"], ["static", "Estática"]], d.ipMode))}
+      ${fld("Dirección IP", inp("fIp", d.ip, true))}
+      ${fld("Máscara de subred", inp("fMask", d.mask, true))}
+      ${fld("Puerta de enlace", inp("fGw", d.gateway, true))}
+      <div class="tlabel">Servidores DNS <button class="add" id="addDns">+ añadir</button></div>
+      <div id="dnsBox">${dnsRows}</div>
+      ${fld("MTU", inp("fMtu", d.mtu, true, "number"))}`;
+}
+
+/* ---------- Internet ---------- */
+function tabInternetNet(d) {
+    return `<div class="row2">
+        ${fld("Latencia base (ms)", inp("fLat", d.latencyBase, true, "number"))}
+        ${fld("Jitter (ms)", inp("fJit", d.jitter, true, "number"))}
+      </div>
+      ${fld("Pérdida de paquetes (%)", inp("fLoss", d.loss, true, "number"))}
+      ${fld("Bloque de IPs públicas", inp("fPub", d.publicBlock, true), "Notación CIDR — usado al simular tráfico saliente.")}`;
+}
+
+/* ---------- Router: interfaces (WAN/LAN) ---------- */
+function tabRouterNet(d) {
+    const rows = (d.interfaces || []).map((it, i) => `
+      <div class="row-card" data-iface="${i}">
+        <button class="rm" data-iface-rm="${i}">×</button>
+        <div class="rh">${esc(it.name)} <span class="badge ${it.type === "wan" ? "info" : "ok"}">${it.type.toUpperCase()}</span></div>
+        <div class="rg c2">
+          <div><div class="mini">Nombre</div><input data-if-name="${i}" value="${esc(it.name)}"></div>
+          <div><div class="mini">Tipo</div>${sel("ifType_" + i, [["wan", "WAN"], ["lan", "LAN"], ["dmz", "DMZ"]], it.type).replace("id=\"ifType_" + i + "\"", `data-if-type="${i}"`)}</div>
+        </div>
+        <div class="rg c2" style="margin-top:5px">
+          <div><div class="mini">IP</div><input data-if-ip="${i}" value="${esc(it.ip)}"></div>
+          <div><div class="mini">Máscara</div><input data-if-mask="${i}" value="${esc(it.mask)}"></div>
+        </div>
+      </div>`).join("");
+    return `<div class="tlabel">Interfaces <button class="add" id="addIface">+ añadir</button></div>
+      <div class="row-list" id="ifList">${rows || `<div class="hint">Sin interfaces.</div>`}</div>
+      ${fld("Ruta por defecto", inp("fDefRoute", d.defaultRoute, true))}
+      ${fld("MTU", inp("fMtu", d.mtu, true, "number"))}`;
+}
+
+/* ---------- Router: DHCP ---------- */
+function tabRouterDhcp(d) {
+    const dhcp = d.dhcp || {};
+    const resvs = (dhcp.reservations || []).map((r, i) => `
+      <div class="row-card" data-resv="${i}">
+        <button class="rm" data-resv-rm="${i}">×</button>
+        <div class="rg c2">
+          <div><div class="mini">MAC</div><input data-resv-mac="${i}" value="${esc(r.mac)}"></div>
+          <div><div class="mini">IP</div><input data-resv-ip="${i}" value="${esc(r.ip)}"></div>
+        </div>
+      </div>`).join("");
+    return `${fld("Servidor DHCP", tog("fDhcpEn", !!dhcp.enabled, dhcp.enabled ? "Habilitado" : "Deshabilitado"))}
+      <div class="row2">
+        ${fld("IP inicial", inp("fDhcpStart", dhcp.rangeStart, true))}
+        ${fld("IP final", inp("fDhcpEnd", dhcp.rangeEnd, true))}
+      </div>
+      ${fld("Tiempo de concesión (h)", inp("fDhcpLease", dhcp.leaseHours, true, "number"))}
+      <div class="tlabel">Reservas (MAC → IP) <button class="add" id="addResv">+ añadir</button></div>
+      <div class="row-list" id="resvList">${resvs || `<div class="hint">Sin reservas.</div>`}</div>
+      ${fld("Reenviador DNS", tog("fDnsFwd", !!d.dnsForwarder, d.dnsForwarder ? "Activo" : "Inactivo"))}`;
+}
+
+/* ---------- Router: avanzado (NAT, rutas, ACL) ---------- */
+function tabRouterAdv(d) {
+    const routes = (d.routes || []).map((r, i) => `
+      <div class="row-card" data-route="${i}">
+        <button class="rm" data-route-rm="${i}">×</button>
+        <div class="rg c3">
+          <div><div class="mini">Destino</div><input data-rt-dst="${i}" value="${esc(r.dst || "")}"></div>
+          <div><div class="mini">Máscara</div><input data-rt-mask="${i}" value="${esc(r.mask || "")}"></div>
+          <div><div class="mini">Next-hop</div><input data-rt-via="${i}" value="${esc(r.via || "")}"></div>
+        </div>
+      </div>`).join("");
+    const acls = (d.acl || []).map((a, i) => `
+      <div class="row-card ${a.action === "deny" ? "deny" : "permit"}" data-acl="${i}">
+        <button class="rm" data-acl-rm="${i}">×</button>
+        <div class="rg c3">
+          <div><div class="mini">Origen</div><input data-acl-src="${i}" value="${esc(a.src || "any")}"></div>
+          <div><div class="mini">Destino</div><input data-acl-dst="${i}" value="${esc(a.dst || "any")}"></div>
+          <div><div class="mini">Acción</div>${sel("aclAct_" + i, [["permit", "Permit"], ["deny", "Deny"]], a.action || "permit").replace("id=\"aclAct_" + i + "\"", `data-acl-act="${i}"`)}</div>
+        </div>
+      </div>`).join("");
+    return `${fld("NAT / PAT", tog("fNat", !!d.nat, d.nat ? "Habilitado (LAN→WAN)" : "Deshabilitado"))}
+      <div class="tlabel">Rutas estáticas <button class="add" id="addRoute">+ añadir</button></div>
+      <div class="row-list" id="routeList">${routes || `<div class="hint">Sin rutas estáticas.</div>`}</div>
+      <div class="tlabel">ACLs <button class="add" id="addAcl">+ añadir</button></div>
+      <div class="row-list" id="aclList">${acls || `<div class="hint">Sin reglas ACL.</div>`}</div>`;
+}
+
+/* ---------- Switch: puertos ---------- */
+function tabSwitchPorts(d) {
+    const vlanOpts = (d.vlans || []).map(v => [String(v.id), `VLAN ${v.id} (${v.name})`]);
+    const conns = {};
+    for (const l of links) {
+        if (l.from === d.id && l.portFrom) conns[l.portFrom] = byId(l.to);
+        if (l.to === d.id && l.portTo) conns[l.portTo] = byId(l.from);
+    }
+    const rows = (d.ports || []).map((p, i) => {
+        const peer = conns[p.n];
+        const peerLabel = peer ? `<span class="badge info" title="${esc(peer.name)}">${esc(peer.name)}</span>` : `<span class="badge" style="color:var(--muted2);background:transparent;border:1px solid var(--border)">libre</span>`;
+        return `
+      <div class="port-row ${p.poe ? "poe" : ""}" data-port="${i}">
+        <div class="pn">${p.n}</div>
+        <div class="rg c2" style="display:grid;gap:4px">
+          <div>${sel("pMode_" + i, [["access", "access"], ["trunk", "trunk"]], p.mode).replace("id=\"pMode_" + i + "\"", `data-p-mode="${i}"`)}</div>
+          <div>${sel("pVlan_" + i, vlanOpts, p.vlan).replace("id=\"pVlan_" + i + "\"", `data-p-vlan="${i}"`)}</div>
+        </div>
+        <div class="rg c2" style="display:grid;gap:4px">
+          <div>${sel("pSpd_" + i, PORT_SPEEDS, p.speed).replace("id=\"pSpd_" + i + "\"", `data-p-spd="${i}"`)}</div>
+          <div style="display:flex;gap:4px;align-items:center;font-size:10px;color:var(--muted)">
+            <button class="toggle-mini ${p.poe ? "on" : ""}" data-p-poe="${i}"></button>PoE
+          </div>
+        </div>
+        <div style="grid-column:1/-1;margin-top:4px;font-size:10px;color:var(--muted2);display:flex;justify-content:space-between;align-items:center">
+          <span>Conectado a</span>${peerLabel}
+        </div>
+      </div>`;
+    }).join("");
+    return `${fld("Cantidad de puertos", sel("fPortCount", ["5", "8", "16", "24", "48"], String(d.portCount || 8)))}
+      <div class="tlabel">Configuración por puerto</div>
+      <div id="portList" style="margin-bottom:10px">${rows}</div>`;
+}
+
+/* ---------- Switch: VLANs ---------- */
+function tabSwitchVlan(d) {
+    const rows = (d.vlans || []).map((v, i) => `
+      <div class="row-card" data-vlan="${i}">
+        ${i > 0 ? `<button class="rm" data-vlan-rm="${i}">×</button>` : ""}
+        <div class="rg c2">
+          <div><div class="mini">ID</div><input data-vl-id="${i}" type="number" min="1" max="4094" value="${v.id}"></div>
+          <div><div class="mini">Nombre</div><input data-vl-name="${i}" value="${esc(v.name)}"></div>
+        </div>
+      </div>`).join("");
+    return `<div class="tlabel">VLANs <button class="add" id="addVlan">+ añadir</button></div>
+      <div class="row-list" id="vlanList">${rows}</div>
+      ${fld("VLAN nativa (trunk)", inp("fNativeVlan", d.nativeVlan, true, "number"))}`;
+}
+
+/* ---------- Switch: avanzado ---------- */
+function tabSwitchAdv(d) {
+    const poePorts = (d.ports || []).filter(p => p.poe).length;
+    return `${fld("Spanning Tree (STP)", tog("fStp", !!d.stp, d.stp ? "Habilitado" : "Deshabilitado"), "Previene bucles entre switches.")}
+      <div class="kvbox">
+        <div class="kv"><span>Puertos totales</span><b>${(d.ports || []).length}</b></div>
+        <div class="kv"><span>Puertos PoE activos</span><b>${poePorts}</b></div>
+        <div class="kv"><span>VLANs definidas</span><b>${(d.vlans || []).length}</b></div>
+      </div>`;
+}
+
+/* ---------- Firewall: zonas ---------- */
+function tabFwZones(d) {
+    /* Agrupar dispositivos por zona según los enlaces que llegan al firewall. */
+    const byZone = {};
+    (d.zones || []).forEach(z => byZone[z.name] = []);
+    for (const l of links) {
+        if (l.from === d.id && l.zoneFrom) {
+            const peer = byId(l.to);
+            if (peer && byZone[l.zoneFrom]) byZone[l.zoneFrom].push(peer);
+        }
+        if (l.to === d.id && l.zoneTo) {
+            const peer = byId(l.from);
+            if (peer && byZone[l.zoneTo]) byZone[l.zoneTo].push(peer);
+        }
+    }
+    const rows = (d.zones || []).map((z, i) => {
+        const peers = (byZone[z.name] || []).map(p =>
+            `<span class="badge info" style="margin-right:4px">${esc(p.name)}</span>`).join("") ||
+            `<span style="font-size:10px;color:var(--muted2)">sin conexiones</span>`;
+        return `
+      <div class="row-card" data-zone="${i}">
+        ${i > 2 ? `<button class="rm" data-zone-rm="${i}">×</button>` : ""}
+        <div class="rg c2">
+          <div><div class="mini">Nombre</div><input data-z-name="${i}" value="${esc(z.name)}"></div>
+          <div><div class="mini">Confianza</div>${sel("zT_" + i, [["high", "Alta"], ["medium", "Media"], ["low", "Baja"]], z.trust).replace("id=\"zT_" + i + "\"", `data-z-trust="${i}"`)}</div>
+        </div>
+        <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:3px;align-items:center">
+          <span class="mini" style="margin-right:4px">Dispositivos</span>${peers}
+        </div>
+      </div>`;
+    }).join("");
+    return `<div class="tlabel">Zonas de seguridad <button class="add" id="addZone">+ añadir</button></div>
+      <div class="row-list" id="zoneList">${rows}</div>
+      <div class="hint" style="margin-top:8px">Los nuevos enlaces se asignan rotando entre zonas. Los nombres se usan en las reglas.</div>`;
+}
+
+/* ---------- Firewall: reglas ---------- */
+function tabFwRules(d) {
+    const zones = (d.zones || []).map(z => z.name);
+    const zoneOpts = [["any", "any"], ...zones.map(z => [z, z])];
+    const rows = (d.rules || []).map((r, i) => `
+      <div class="row-card ${r.action === "deny" ? "deny" : "permit"}" data-rule="${i}">
+        <button class="rm" data-rule-rm="${i}">×</button>
+        <div class="rh">#${i + 1} <span class="badge ${r.action === "deny" ? "err" : "ok"}">${r.action.toUpperCase()}</span></div>
+        <div class="rg c2">
+          <div><div class="mini">Origen</div>${sel("rs_" + i, zoneOpts, r.src).replace("id=\"rs_" + i + "\"", `data-r-src="${i}"`)}</div>
+          <div><div class="mini">Destino</div>${sel("rd_" + i, zoneOpts, r.dst).replace("id=\"rd_" + i + "\"", `data-r-dst="${i}"`)}</div>
+        </div>
+        <div class="rg c3" style="margin-top:5px">
+          <div><div class="mini">Puerto</div><input data-r-port="${i}" value="${esc(r.port)}"></div>
+          <div><div class="mini">Proto</div>${sel("rp_" + i, [["any", "any"], ["tcp", "tcp"], ["udp", "udp"], ["icmp", "icmp"]], r.proto).replace("id=\"rp_" + i + "\"", `data-r-proto="${i}"`)}</div>
+          <div><div class="mini">Acción</div>${sel("ra_" + i, [["permit", "Permit"], ["deny", "Deny"]], r.action).replace("id=\"ra_" + i + "\"", `data-r-action="${i}"`)}</div>
+        </div>
+      </div>`).join("");
+    return `<div class="tlabel">Reglas (orden importa) <button class="add" id="addRule">+ añadir</button></div>
+      <div class="row-list" id="ruleList">${rows || `<div class="hint">Sin reglas. El firewall en modo permisivo.</div>`}</div>`;
+}
+
+/* ---------- Firewall: avanzado ---------- */
+function tabFirewallAdv(d) {
+    return `${fld("Inspección de estado (stateful)", tog("fStateful", !!d.stateful, d.stateful ? "Habilitada" : "Deshabilitada"))}
+      ${fld("NAT", tog("fFwNat", !!d.nat, d.nat ? "Habilitado" : "Deshabilitado"))}
+      <div class="tlabel">Endpoints VPN</div>
+      <div class="hint">Próximamente: site-to-site IPsec / OpenVPN.</div>`;
+}
+
+/* ---------- AP: WiFi ---------- */
+function tabApWifi(d) {
+    return `${fld("SSID", inp("fSsid", d.ssid))}
+      ${fld("Seguridad", sel("fSec", SECURITY_OPTIONS.map(s => [s, s]), d.security))}
+      ${d.security !== "Abierta" ? fld("Contraseña", inp("fPass", d.password, true)) : ""}
+      ${fld("VLAN", inp("fVlan", d.vlan, true, "number"))}
+      ${fld("SSID oculto", tog("fHidden", !!d.hidden, d.hidden ? "Oculto" : "Visible"))}
+      ${fld("Red de invitados (SSID)", inp("fGuest", d.guestSsid), "Vacío = sin red de invitados.")}`;
+}
+
+/* ---------- AP: Radio ---------- */
+function tabApRadio(d) {
+    const r = apRange(d);
+    return `${fld("Banda", sel("fBand", BANDS.map(b => [b, b]), d.band))}
+      <div class="row2">
+        ${fld("Canal", inp("fChan", d.channel, true, "number"))}
+        ${fld("Ancho (MHz)", sel("fCw", CHANNEL_WIDTHS.map(c => [String(c), c + " MHz"]), String(d.channelWidth)))}
+      </div>
+      <div class="field"><label>Potencia de transmisión</label>
+        <div class="slider-row">
+          <input type="range" id="fTx" min="-3" max="30" step="1" value="${d.txPower}">
+          <span class="rng-val" id="txVal">${d.txPower} dBm</span>
+        </div>
+        <div class="hint">Radio efectivo aproximado: <b id="rangeOut">${r}</b> px</div>
+      </div>`;
+}
+
+/* ---------- AP: seguridad (filtrado MAC) ---------- */
+function tabApSec(d) {
+    const macs = (d.macFilter || []).map((m, i) =>
+        `<div class="dns-row"><input class="mono" data-mac="${i}" value="${esc(m)}"><button class="rm" data-mac-rm="${i}">×</button></div>`
+    ).join("") || `<div class="hint">Sin filtrado MAC. Todas las MACs pueden asociarse.</div>`;
+    return `<div class="tlabel">Filtrado por dirección MAC <button class="add" id="addMac">+ añadir</button></div>
+      <div id="macBox">${macs}</div>
+      <div class="hint" style="margin-top:6px">Solo las MACs en la lista podrán asociarse al SSID. Si la lista está vacía, no hay filtrado.</div>`;
+}
+
+/* ---------- WiFi para dispositivos finales (asociación) ---------- */
+function tabEndWifi(d) {
+    return `${fld("SSID al que se conecta", inp("fWSsid", d.wifiSsid))}
+      ${fld("Contraseña", inp("fWPass", d.wifiPassword, true), "Debe coincidir con la del AP.")}`;
+}
+
+/* ---------- Servicios (servidor o exposedPorts) ---------- */
+function tabServices(d) {
+    if (d.type === "server") {
+        const rows = (d.services || []).map((s, i) => `
+          <div class="svc-row ${s.enabled ? "on" : ""}" data-svc="${i}">
+            <button class="toggle-mini ${s.enabled ? "on" : ""}" data-svc-tog="${i}"></button>
+            <div class="name">${esc(s.name)}</div>
+            <div class="port">${s.port}</div>
+            <div class="proto">${s.proto}</div>
+          </div>`).join("");
+        return `<div class="tlabel">Servicios del servidor</div>
+          <div id="svcList">${rows}</div>
+          <div class="hint" style="margin-top:8px">Cada servicio responde en su puerto si está habilitado y el servidor encendido.</div>`;
+    }
+    const rows = (d.exposedPorts || []).map((s, i) => `
+      <div class="svc-row ${s.enabled ? "on" : ""}" data-ep="${i}">
+        <button class="toggle-mini ${s.enabled ? "on" : ""}" data-ep-tog="${i}"></button>
+        <div><input data-ep-name="${i}" value="${esc(s.name)}" style="width:100%;background:transparent;border:none;color:inherit;font-weight:600"></div>
+        <div><input data-ep-port="${i}" type="number" value="${s.port}" style="width:100%;background:transparent;border:none;color:var(--muted);font-family:monospace"></div>
+        <div>${sel("epP_" + i, [["tcp", "TCP"], ["udp", "UDP"]], s.proto).replace("id=\"epP_" + i + "\"", `data-ep-proto="${i}"`).replace("<select", '<select style="background:transparent;border:none;color:var(--muted2);font-size:9px;text-align:right"')}</div>
+        <button class="rm" data-ep-rm="${i}" style="position:absolute;right:2px;top:50%;transform:translateY(-50%);width:18px;height:18px">×</button>
+      </div>`).join("") || `<div class="hint">Sin puertos expuestos.</div>`;
+    return `<div class="tlabel">Puertos expuestos <button class="add" id="addEp">+ añadir</button></div>
+      <div id="epList">${rows}</div>`;
+}
+
+/* ============================ INSPECTOR — BINDINGS ============================ */
+function bindTabHandlers(d) {
+    /* General */
+    if ($("#fName")) $("#fName").addEventListener("input", e => { d.name = e.target.value; updateNode(d); autosave(); });
+    if ($("#fHost")) $("#fHost").addEventListener("input", e => { d.hostname = e.target.value; autosave(); });
+    if ($("#fMac")) $("#fMac").addEventListener("input", e => { d.mac = e.target.value; autosave(); });
+    if ($("#fOn")) $("#fOn").addEventListener("click", () => {
+        d.on = !d.on; updateNode(d); refreshGeom(); renderInspector();
+        log(d.name + (d.on ? " encendido" : " apagado"), "warn"); autosave();
+    });
+
+    /* Red común */
+    bindNetCommon(d);
+    bindInternet(d);
+    bindRouterNet(d);
+    bindRouterDhcp(d);
+    bindRouterAdv(d);
+    bindSwitchPorts(d);
+    bindSwitchVlan(d);
+    bindSwitchAdv(d);
+    bindFw(d);
+    bindAp(d);
+    bindEndWifi(d);
+    bindSvc(d);
+}
+
+function bindNetCommon(d) {
+    if ($("#fIpMode")) $("#fIpMode").addEventListener("change", e => { d.ipMode = e.target.value; renderInspector(); autosave(); });
+    if ($("#fIp")) $("#fIp").addEventListener("input", e => { d.ip = e.target.value; updateNode(d); autosave(); });
+    if ($("#fMask")) $("#fMask").addEventListener("input", e => { d.mask = e.target.value; autosave(); });
+    if ($("#fGw")) $("#fGw").addEventListener("input", e => { d.gateway = e.target.value; autosave(); });
+    if ($("#fMtu") && d.type !== "router") $("#fMtu").addEventListener("input", e => { d.mtu = +e.target.value || 1500; autosave(); });
+
+    inspector.querySelectorAll("[data-dns]").forEach(el => {
+        el.addEventListener("input", e => { d.dns[+el.dataset.dns] = e.target.value; autosave(); });
+    });
+    inspector.querySelectorAll("[data-dns-rm]").forEach(el => {
+        el.addEventListener("click", () => { d.dns.splice(+el.dataset.dnsRm, 1); renderInspector(); autosave(); });
+    });
+    if ($("#addDns")) $("#addDns").addEventListener("click", () => {
+        if (!d.dns) d.dns = [];
+        d.dns.push(""); renderInspector(); autosave();
+    });
+}
+
+function bindInternet(d) {
+    if (d.type !== "internet") return;
+    if ($("#fLat")) $("#fLat").addEventListener("input", e => { d.latencyBase = +e.target.value || 0; autosave(); });
+    if ($("#fJit")) $("#fJit").addEventListener("input", e => { d.jitter = +e.target.value || 0; autosave(); });
+    if ($("#fLoss")) $("#fLoss").addEventListener("input", e => { d.loss = +e.target.value || 0; autosave(); });
+    if ($("#fPub")) $("#fPub").addEventListener("input", e => { d.publicBlock = e.target.value; autosave(); });
+}
+
+function bindRouterNet(d) {
+    if (d.type !== "router") return;
+    if ($("#fDefRoute")) $("#fDefRoute").addEventListener("input", e => { d.defaultRoute = e.target.value; autosave(); });
+    if ($("#fMtu")) $("#fMtu").addEventListener("input", e => { d.mtu = +e.target.value || 1500; autosave(); });
+    inspector.querySelectorAll("[data-if-name]").forEach(el => el.addEventListener("input", e => { d.interfaces[+el.dataset.ifName].name = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-if-type]").forEach(el => el.addEventListener("change", e => { d.interfaces[+el.dataset.ifType].type = e.target.value; renderInspector(); autosave(); }));
+    inspector.querySelectorAll("[data-if-ip]").forEach(el => el.addEventListener("input", e => { d.interfaces[+el.dataset.ifIp].ip = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-if-mask]").forEach(el => el.addEventListener("input", e => { d.interfaces[+el.dataset.ifMask].mask = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-iface-rm]").forEach(el => el.addEventListener("click", () => { d.interfaces.splice(+el.dataset.ifaceRm, 1); renderInspector(); autosave(); }));
+    if ($("#addIface")) $("#addIface").addEventListener("click", () => {
+        d.interfaces.push({ name: "IF" + (d.interfaces.length + 1), type: "lan", ip: "", mask: "255.255.255.0" });
+        renderInspector(); autosave();
+    });
+}
+
+function bindRouterDhcp(d) {
+    if (d.type !== "router" || !d.dhcp) return;
+    if ($("#fDhcpEn")) $("#fDhcpEn").addEventListener("click", () => { d.dhcp.enabled = !d.dhcp.enabled; renderInspector(); autosave(); });
+    if ($("#fDhcpStart")) $("#fDhcpStart").addEventListener("input", e => { d.dhcp.rangeStart = e.target.value; autosave(); });
+    if ($("#fDhcpEnd")) $("#fDhcpEnd").addEventListener("input", e => { d.dhcp.rangeEnd = e.target.value; autosave(); });
+    if ($("#fDhcpLease")) $("#fDhcpLease").addEventListener("input", e => { d.dhcp.leaseHours = +e.target.value || 24; autosave(); });
+    if ($("#fDnsFwd")) $("#fDnsFwd").addEventListener("click", () => { d.dnsForwarder = !d.dnsForwarder; renderInspector(); autosave(); });
+    inspector.querySelectorAll("[data-resv-mac]").forEach(el => el.addEventListener("input", e => { d.dhcp.reservations[+el.dataset.resvMac].mac = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-resv-ip]").forEach(el => el.addEventListener("input", e => { d.dhcp.reservations[+el.dataset.resvIp].ip = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-resv-rm]").forEach(el => el.addEventListener("click", () => { d.dhcp.reservations.splice(+el.dataset.resvRm, 1); renderInspector(); autosave(); }));
+    if ($("#addResv")) $("#addResv").addEventListener("click", () => {
+        d.dhcp.reservations.push({ mac: genMac(), ip: "" });
+        renderInspector(); autosave();
+    });
+}
+
+function bindRouterAdv(d) {
+    if (d.type !== "router") return;
+    if ($("#fNat")) $("#fNat").addEventListener("click", () => { d.nat = !d.nat; renderInspector(); autosave(); });
+    inspector.querySelectorAll("[data-rt-dst]").forEach(el => el.addEventListener("input", e => { d.routes[+el.dataset.rtDst].dst = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-rt-mask]").forEach(el => el.addEventListener("input", e => { d.routes[+el.dataset.rtMask].mask = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-rt-via]").forEach(el => el.addEventListener("input", e => { d.routes[+el.dataset.rtVia].via = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-route-rm]").forEach(el => el.addEventListener("click", () => { d.routes.splice(+el.dataset.routeRm, 1); renderInspector(); autosave(); }));
+    if ($("#addRoute")) $("#addRoute").addEventListener("click", () => {
+        d.routes.push({ dst: "0.0.0.0", mask: "0.0.0.0", via: "" });
+        renderInspector(); autosave();
+    });
+    inspector.querySelectorAll("[data-acl-src]").forEach(el => el.addEventListener("input", e => { d.acl[+el.dataset.aclSrc].src = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-acl-dst]").forEach(el => el.addEventListener("input", e => { d.acl[+el.dataset.aclDst].dst = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-acl-act]").forEach(el => el.addEventListener("change", e => { d.acl[+el.dataset.aclAct].action = e.target.value; renderInspector(); autosave(); }));
+    inspector.querySelectorAll("[data-acl-rm]").forEach(el => el.addEventListener("click", () => { d.acl.splice(+el.dataset.aclRm, 1); renderInspector(); autosave(); }));
+    if ($("#addAcl")) $("#addAcl").addEventListener("click", () => {
+        d.acl.push({ src: "any", dst: "any", action: "permit" });
+        renderInspector(); autosave();
+    });
+}
+
+function bindSwitchPorts(d) {
+    if (d.type !== "switch") return;
+    if ($("#fPortCount")) $("#fPortCount").addEventListener("change", e => {
+        const n = +e.target.value;
+        d.portCount = n;
+        if (d.ports.length < n) {
+            for (let i = d.ports.length + 1; i <= n; i++) d.ports.push({ n: i, vlan: 1, mode: "access", speed: "1G", duplex: "full", poe: false });
+        } else {
+            d.ports = d.ports.slice(0, n);
+        }
+        renderInspector(); autosave();
+    });
+    inspector.querySelectorAll("[data-p-mode]").forEach(el => el.addEventListener("change", e => { d.ports[+el.dataset.pMode].mode = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-p-vlan]").forEach(el => el.addEventListener("change", e => { d.ports[+el.dataset.pVlan].vlan = +e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-p-spd]").forEach(el => el.addEventListener("change", e => { d.ports[+el.dataset.pSpd].speed = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-p-poe]").forEach(el => el.addEventListener("click", () => {
+        const i = +el.dataset.pPoe;
+        d.ports[i].poe = !d.ports[i].poe;
+        renderInspector(); autosave();
+    }));
+}
+
+function bindSwitchVlan(d) {
+    if (d.type !== "switch") return;
+    if ($("#fNativeVlan")) $("#fNativeVlan").addEventListener("input", e => { d.nativeVlan = +e.target.value || 1; autosave(); });
+    inspector.querySelectorAll("[data-vl-id]").forEach(el => el.addEventListener("input", e => { d.vlans[+el.dataset.vlId].id = +e.target.value || 1; autosave(); }));
+    inspector.querySelectorAll("[data-vl-name]").forEach(el => el.addEventListener("input", e => { d.vlans[+el.dataset.vlName].name = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-vlan-rm]").forEach(el => el.addEventListener("click", () => {
+        const i = +el.dataset.vlanRm;
+        const removedId = d.vlans[i].id;
+        d.vlans.splice(i, 1);
+        d.ports.forEach(p => { if (p.vlan === removedId) p.vlan = d.vlans[0].id; });
+        renderInspector(); autosave();
+    }));
+    if ($("#addVlan")) $("#addVlan").addEventListener("click", () => {
+        const next = Math.max(...d.vlans.map(v => v.id)) + 1;
+        d.vlans.push({ id: next, name: "vlan" + next });
+        renderInspector(); autosave();
+    });
+}
+
+function bindSwitchAdv(d) {
+    if (d.type !== "switch") return;
+    if ($("#fStp")) $("#fStp").addEventListener("click", () => { d.stp = !d.stp; renderInspector(); autosave(); });
+}
+
+function bindFw(d) {
+    if (d.type !== "firewall") return;
+    if ($("#fStateful")) $("#fStateful").addEventListener("click", () => { d.stateful = !d.stateful; renderInspector(); autosave(); });
+    if ($("#fFwNat")) $("#fFwNat").addEventListener("click", () => { d.nat = !d.nat; renderInspector(); autosave(); });
+
+    inspector.querySelectorAll("[data-z-name]").forEach(el => el.addEventListener("input", e => { d.zones[+el.dataset.zName].name = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-z-trust]").forEach(el => el.addEventListener("change", e => { d.zones[+el.dataset.zTrust].trust = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-zone-rm]").forEach(el => el.addEventListener("click", () => { d.zones.splice(+el.dataset.zoneRm, 1); renderInspector(); autosave(); }));
+    if ($("#addZone")) $("#addZone").addEventListener("click", () => {
+        d.zones.push({ name: "zona" + (d.zones.length + 1), trust: "medium" });
+        renderInspector(); autosave();
+    });
+
+    inspector.querySelectorAll("[data-r-src]").forEach(el => el.addEventListener("change", e => { d.rules[+el.dataset.rSrc].src = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-r-dst]").forEach(el => el.addEventListener("change", e => { d.rules[+el.dataset.rDst].dst = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-r-port]").forEach(el => el.addEventListener("input", e => { d.rules[+el.dataset.rPort].port = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-r-proto]").forEach(el => el.addEventListener("change", e => { d.rules[+el.dataset.rProto].proto = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-r-action]").forEach(el => el.addEventListener("change", e => { d.rules[+el.dataset.rAction].action = e.target.value; renderInspector(); autosave(); }));
+    inspector.querySelectorAll("[data-rule-rm]").forEach(el => el.addEventListener("click", () => { d.rules.splice(+el.dataset.ruleRm, 1); renderInspector(); autosave(); }));
+    if ($("#addRule")) $("#addRule").addEventListener("click", () => {
+        d.rules.push({ n: d.rules.length + 1, src: "any", dst: "any", port: "any", proto: "any", action: "permit" });
+        renderInspector(); autosave();
+    });
+}
+
+function bindAp(d) {
+    if (d.type !== "ap") return;
+    if ($("#fSsid")) $("#fSsid").addEventListener("input", e => { d.ssid = e.target.value; autosave(); });
+    if ($("#fSec")) $("#fSec").addEventListener("change", e => { d.security = e.target.value; renderInspector(); autosave(); });
+    if ($("#fPass")) $("#fPass").addEventListener("input", e => { d.password = e.target.value; autosave(); });
+    if ($("#fVlan")) $("#fVlan").addEventListener("input", e => { d.vlan = +e.target.value || 1; autosave(); });
+    if ($("#fHidden")) $("#fHidden").addEventListener("click", () => { d.hidden = !d.hidden; renderInspector(); autosave(); });
+    if ($("#fGuest")) $("#fGuest").addEventListener("input", e => { d.guestSsid = e.target.value; autosave(); });
+    if ($("#fBand")) $("#fBand").addEventListener("change", e => { d.band = e.target.value; autosave(); });
+    if ($("#fChan")) $("#fChan").addEventListener("input", e => { d.channel = +e.target.value || 1; autosave(); });
+    if ($("#fCw")) $("#fCw").addEventListener("change", e => { d.channelWidth = +e.target.value || 20; autosave(); });
+    if ($("#fTx")) $("#fTx").addEventListener("input", e => {
+        d.txPower = +e.target.value;
+        d.range = apRange(d);
+        $("#txVal").textContent = d.txPower + " dBm";
+        if ($("#rangeOut")) $("#rangeOut").textContent = d.range;
+        refreshGeom(); autosave();
+    });
+    inspector.querySelectorAll("[data-mac]").forEach(el => el.addEventListener("input", e => { d.macFilter[+el.dataset.mac] = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-mac-rm]").forEach(el => el.addEventListener("click", () => { d.macFilter.splice(+el.dataset.macRm, 1); renderInspector(); autosave(); }));
+    if ($("#addMac")) $("#addMac").addEventListener("click", () => {
+        if (!d.macFilter) d.macFilter = [];
+        d.macFilter.push(genMac());
+        renderInspector(); autosave();
+    });
+}
+
+function bindEndWifi(d) {
+    if (!["laptop", "phone", "camera"].includes(d.type)) return;
+    if ($("#fWSsid")) $("#fWSsid").addEventListener("input", e => { d.wifiSsid = e.target.value; autosave(); });
+    if ($("#fWPass")) $("#fWPass").addEventListener("input", e => { d.wifiPassword = e.target.value; autosave(); });
+}
+
+function bindSvc(d) {
+    inspector.querySelectorAll("[data-svc-tog]").forEach(el => el.addEventListener("click", () => {
+        const i = +el.dataset.svcTog;
+        d.services[i].enabled = !d.services[i].enabled;
+        renderInspector(); autosave();
+    }));
+    inspector.querySelectorAll("[data-ep-tog]").forEach(el => el.addEventListener("click", () => {
+        const i = +el.dataset.epTog;
+        d.exposedPorts[i].enabled = !d.exposedPorts[i].enabled;
+        renderInspector(); autosave();
+    }));
+    inspector.querySelectorAll("[data-ep-name]").forEach(el => el.addEventListener("input", e => { d.exposedPorts[+el.dataset.epName].name = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-ep-port]").forEach(el => el.addEventListener("input", e => { d.exposedPorts[+el.dataset.epPort].port = +e.target.value || 0; autosave(); }));
+    inspector.querySelectorAll("[data-ep-proto]").forEach(el => el.addEventListener("change", e => { d.exposedPorts[+el.dataset.epProto].proto = e.target.value; autosave(); }));
+    inspector.querySelectorAll("[data-ep-rm]").forEach(el => el.addEventListener("click", () => { d.exposedPorts.splice(+el.dataset.epRm, 1); renderInspector(); autosave(); }));
+    if ($("#addEp")) $("#addEp").addEventListener("click", () => {
+        if (!d.exposedPorts) d.exposedPorts = [];
+        d.exposedPorts.push({ name: "Servicio", port: 8080, proto: "tcp", enabled: true });
+        renderInspector(); autosave();
+    });
+}
 
 /* ============================ CONSOLE / TOAST ============================ */
 function log(msg, level) {
@@ -727,11 +1853,32 @@ function toast(msg, type) {
 $("#conClear").onclick = () => { logBox.innerHTML = ""; log("Consola limpiada", "muted"); };
 
 /* ============================ SAVE / LOAD ============================ */
+/* Campos a serializar por dispositivo (todos los nuevos campos planos + estructuras). */
+const DEV_FIELDS = [
+    "id", "type", "name", "ip", "x", "y", "on",
+    "hostname", "mac", "ipMode", "mask", "gateway", "dns", "mtu",
+    "interfaces", "routes", "defaultRoute", "nat", "dhcp", "dnsForwarder", "acl",
+    "portCount", "ports", "vlans", "nativeVlan", "stp",
+    "zones", "rules", "stateful", "vpn",
+    "ssid", "security", "password", "band", "channel", "channelWidth",
+    "txPower", "hidden", "macFilter", "guestSsid", "vlan",
+    "services", "exposedPorts",
+    "wifiSsid", "wifiPassword",
+    "latencyBase", "jitter", "loss", "publicBlock"
+];
+const LINK_FIELDS = ["id", "from", "to", "kind", "status", "bandwidthMbps", "latencyMs", "lossPct", "mtu",
+    "portFrom", "portTo", "zoneFrom", "zoneTo"];
+
+function pick(obj, fields) {
+    const r = {};
+    for (const k of fields) if (obj[k] !== undefined) r[k] = obj[k];
+    return r;
+}
 function serialize() {
     return JSON.stringify({
-        v: 1,
-        devices: devices.map(d => ({ id: d.id, type: d.type, name: d.name, ip: d.ip, x: d.x, y: d.y, on: d.on, range: d.range })),
-        links: links.map(l => ({ id: l.id, from: l.from, to: l.to, kind: l.kind, status: l.status, bw: l.bw })),
+        v: 2,
+        devices: devices.map(d => pick(d, DEV_FIELDS)),
+        links: links.map(l => pick(l, LINK_FIELDS)),
         view: { ...view }
     });
 }
@@ -745,21 +1892,33 @@ function loadState(data, quiet) {
     for (const k in nameCount) delete nameCount[k];
     let maxN = 0;
     (data.devices || []).forEach(d => {
+        const def = defaultsFor(d.type);
         const dev = {
-            id: d.id, type: d.type, name: d.name, ip: d.ip, x: d.x, y: d.y,
-            on: d.on !== false, range: d.range || (d.type === "ap" ? 200 : 0)
+            ...def,
+            ...pick(d, DEV_FIELDS),
+            on: d.on !== false
         };
+        if (dev.type === "ap") dev.range = apRange(dev);
+        if (!dev.hostname) dev.hostname = String(dev.name || "").toLowerCase().replace(/\s+/g, "-");
+        if (!dev.mac && dev.type !== "internet") dev.mac = genMac();
         devices.push(dev); createNode(dev);
-        const m = String(d.name).match(/(\d+)\s*$/);
-        if (m) nameCount[d.type] = Math.max(nameCount[d.type] || 0, +m[1]);
-        const idn = parseInt(String(d.id).replace(/\D/g, ""), 10);
+        const m = String(dev.name).match(/(\d+)\s*$/);
+        if (m) nameCount[dev.type] = Math.max(nameCount[dev.type] || 0, +m[1]);
+        const idn = parseInt(String(dev.id).replace(/\D/g, ""), 10);
         if (!isNaN(idn)) maxN = Math.max(maxN, idn);
     });
     (data.links || []).forEach(l => {
-        links.push({ id: l.id, from: l.from, to: l.to, kind: l.kind || "wired", status: l.status || "up", bw: l.bw || "1 Gbps" });
+        const kind = l.kind || "wired";
+        links.push({
+            ...defaultsForLink(kind),
+            ...pick(l, LINK_FIELDS),
+            kind,
+            status: l.status || "up"
+        });
         const idn = parseInt(String(l.id).replace(/\D/g, ""), 10);
         if (!isNaN(idn)) maxN = Math.max(maxN, idn);
     });
+    links.forEach(assignLinkMeta);
     idSeq = maxN + 1;
     let maxIp = 10;
     devices.forEach(d => { const m = String(d.ip).match(/(\d+)\s*$/); if (m) maxIp = Math.max(maxIp, +m[1]); });
@@ -810,7 +1969,7 @@ $("#btnPng").onclick = () => {
     if (!devices.length) { toast("No hay nada que exportar", "error"); return; }
     let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
     devices.forEach(d => {
-        const p = d.type === "ap" ? d.range : 62;
+        const p = d.type === "ap" ? apRange(d) : 62;
         minX = Math.min(minX, d.x - p); maxX = Math.max(maxX, d.x + p);
         minY = Math.min(minY, d.y - p); maxY = Math.max(maxY, d.y + p);
     });
@@ -827,11 +1986,12 @@ $("#btnPng").onclick = () => {
     for (let x = Math.ceil(minX / g) * g; x < maxX; x += g)
         for (let y = Math.ceil(minY / g) * g; y < maxY; y += g) { ctx.beginPath(); ctx.arc(x, y, 1, 0, 7); ctx.fill(); }
     devices.filter(d => d.type === "ap" && d.on).forEach(d => {
-        const grd = ctx.createRadialGradient(d.x, d.y, 4, d.x, d.y, d.range);
+        const r = apRange(d);
+        const grd = ctx.createRadialGradient(d.x, d.y, 4, d.x, d.y, r);
         grd.addColorStop(0, "rgba(45,212,191,.16)"); grd.addColorStop(1, "rgba(45,212,191,0)");
-        ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(d.x, d.y, d.range, 0, 7); ctx.fill();
+        ctx.fillStyle = grd; ctx.beginPath(); ctx.arc(d.x, d.y, r, 0, 7); ctx.fill();
         ctx.strokeStyle = "rgba(45,212,191,.45)"; ctx.lineWidth = 1.4; ctx.setLineDash([4, 7]);
-        ctx.beginPath(); ctx.arc(d.x, d.y, d.range, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+        ctx.beginPath(); ctx.arc(d.x, d.y, r, 0, 7); ctx.stroke(); ctx.setLineDash([]);
     });
     links.forEach(l => {
         const a = byId(l.from), b = byId(l.to); if (!a || !b) return;
@@ -883,17 +2043,22 @@ function loadDemo() {
     let n = 1;
     D.forEach(([t, x, y]) => {
         const tn = TYPES[t].label.split(" ")[0];
-        data.devices.push({
-            id: "d" + n, type: t, name: tn + " " + n, x, y, on: true,
+        const name = tn + " " + n;
+        const dev = {
+            id: "d" + n, type: t, name, x, y, on: true,
             ip: t === "internet" ? "WAN" : t === "router" ? "192.168.1.1" : "192.168.1." + (n + 9),
-            range: t === "ap" ? 210 : 0
-        });
+            ...defaultsFor(t)
+        };
+        dev.hostname = name.toLowerCase().replace(/\s+/g, "-");
+        if (t === "ap") dev.range = apRange(dev);
+        data.devices.push(dev);
         n++;
     });
     const id = i => "d" + i;
     [[1, 2], [2, 3], [3, 4], [4, 5], [4, 6], [6, 7], [6, 8], [3, 9], [9, 10], [9, 11]].forEach(([a, b], i) => {
         const da = data.devices[a - 1], db = data.devices[b - 1];
-        data.links.push({ id: "l" + (100 + i), from: id(a), to: id(b), kind: linkKind(da, db), status: "up", bw: "1 Gbps" });
+        const kind = linkKind(da, db);
+        data.links.push({ id: "l" + (100 + i), from: id(a), to: id(b), kind, status: "up", ...defaultsForLink(kind) });
     });
     loadState(data, true);
     log("Red de ejemplo cargada — 11 dispositivos", "success");
@@ -931,7 +2096,12 @@ function init() {
         const s = localStorage.getItem("netforge.save");
         if (s) {
             const data = JSON.parse(s);
-            if (data.devices && data.devices.length) { loadState(data, true); restored = true; }
+            if ((data.v || 1) < 2) {
+                localStorage.removeItem("netforge.save");
+                log("Guardado en formato antiguo descartado (modelo extendido).", "muted");
+            } else if (data.devices && data.devices.length) {
+                loadState(data, true); restored = true;
+            }
         }
     } catch (e) { }
     if (restored) { log("Sesión anterior restaurada", "muted"); }
