@@ -30,11 +30,23 @@ NF.links = (function () {
 
     function linkKind(a, b) {
         const T = NF.config.TYPES;
-        const aw = a.type === "ap", bw = b.type === "ap";
-        if (aw && bw) return "wireless";
-        if (aw && T[b.type].wireless) return "wireless";
-        if (bw && T[a.type].wireless) return "wireless";
+        const ar = NF.ip.hasWifiRadio(a), br = NF.ip.hasWifiRadio(b);
+        /* Solo es wireless si al menos un extremo emite WiFi y el otro
+           puede ser cliente WiFi (o también emite). */
+        if (ar && br) return "wireless";
+        if (ar && T[b.type] && T[b.type].wireless) return "wireless";
+        if (br && T[a.type] && T[a.type].wireless) return "wireless";
         return "wired";
+    }
+
+    /* ¿Este par puede llevar tráfico inalámbrico? */
+    function canBeWireless(a, b) {
+        const T = NF.config.TYPES;
+        const ar = NF.ip.hasWifiRadio(a), br = NF.ip.hasWifiRadio(b);
+        if (ar && br) return true;
+        if (ar && T[b.type] && T[b.type].wireless) return true;
+        if (br && T[a.type] && T[a.type].wireless) return true;
+        return false;
     }
 
     /* Reglas de conectividad realistas. */
@@ -42,12 +54,16 @@ NF.links = (function () {
         if (!a || !b) return { ok: false, reason: "Dispositivos inválidos." };
         if (a.id === b.id) return { ok: false, reason: "No puedes conectar un dispositivo consigo mismo." };
 
-        /* Smartphone solo se conecta (por WiFi) a un AP. */
+        /* Smartphone solo se conecta (por WiFi) a algo con radio (AP o
+           router con AP integrado). */
         if (a.type === "phone" || b.type === "phone") {
             const phone = a.type === "phone" ? a : b;
             const other = phone === a ? b : a;
-            if (other.type !== "ap") {
-                return { ok: false, reason: `${phone.name} solo se conecta por WiFi a un punto de acceso.` };
+            if (!NF.ip.hasWifiRadio(other)) {
+                return {
+                    ok: false,
+                    reason: `${phone.name} solo se conecta por WiFi a un punto de acceso o router con AP integrado.`
+                };
             }
         }
 
@@ -66,10 +82,11 @@ NF.links = (function () {
     function wirelessOk(l) {
         const a = NF.devices.byId(l.from), b = NF.devices.byId(l.to);
         if (!a || !b) return false;
+        const ra = NF.ip.radioRange(a), rb = NF.ip.radioRange(b);
         let range = 220;
-        if (a.type === "ap" && b.type === "ap") range = Math.max(NF.ip.apRange(a), NF.ip.apRange(b));
-        else if (a.type === "ap") range = NF.ip.apRange(a);
-        else if (b.type === "ap") range = NF.ip.apRange(b);
+        if (ra && rb) range = Math.max(ra, rb);
+        else if (ra) range = ra;
+        else if (rb) range = rb;
         return NF.geo.dist(a, b) <= range;
     }
 
@@ -187,7 +204,7 @@ NF.links = (function () {
     }
 
     return {
-        byId, defaultsForLink, linkKind, validateConnection,
+        byId, defaultsForLink, linkKind, canBeWireless, validateConnection,
         wirelessOk, assignMeta, portOnSwitch, zoneOnFw,
         nextFreeSwitchPort, nextFwZone,
         create, remove, update, fromSerialized

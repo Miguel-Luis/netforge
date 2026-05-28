@@ -8,6 +8,16 @@ NF.palette = (function () {
 
     let ghost = null;
 
+    /* Primer .node bajo el cursor (ghost tiene pointer-events:none). */
+    function nodeUnderCursor(clientX, clientY) {
+        const els = document.elementsFromPoint(clientX, clientY);
+        for (const el of els) {
+            const n = el.closest && el.closest(".node");
+            if (n) return n;
+        }
+        return null;
+    }
+
     function startDrag(e, type) {
         e.preventDefault();
         const start = { x: e.clientX, y: e.clientY };
@@ -23,20 +33,54 @@ NF.palette = (function () {
         ghost.style.display = "none";
         document.body.appendChild(ghost);
 
+        /* Highlight de router como drop-target cuando se arrastra un AP. */
+        let dropTargetEl = null, dropTargetDev = null;
+        const canEmbed = type === "ap";
+        function clearDropTarget() {
+            if (dropTargetEl) dropTargetEl.classList.remove("drop-target");
+            dropTargetEl = null; dropTargetDev = null;
+        }
+
         function mv(ev) {
             if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) > 6) moved = true;
-            if (moved) {
-                ghost.style.display = "grid";
-                ghost.style.left = ev.clientX + "px";
-                ghost.style.top = ev.clientY + "px";
+            if (!moved) return;
+            ghost.style.display = "grid";
+            ghost.style.left = ev.clientX + "px";
+            ghost.style.top = ev.clientY + "px";
+            if (!canEmbed) return;
+            const overEl = nodeUnderCursor(ev.clientX, ev.clientY);
+            const overDev = overEl ? NF.devices.byId(overEl.dataset.id) : null;
+            const target = overDev && overDev.type === "router" && !overDev.embeddedAp ? overDev : null;
+            if (target) {
+                if (dropTargetDev !== target) {
+                    clearDropTarget();
+                    dropTargetDev = target;
+                    dropTargetEl = overEl;
+                    overEl.classList.add("drop-target");
+                }
+            } else {
+                clearDropTarget();
             }
         }
         function up(ev) {
             window.removeEventListener("pointermove", mv);
             window.removeEventListener("pointerup", up);
             ghost.remove(); ghost = null;
+            const router = dropTargetDev;
+            clearDropTarget();
             const refs = NF.dom.refs();
             const r = refs.stage.getBoundingClientRect();
+
+            /* Si soltamos un AP sobre un router sin AP integrado, lo instalamos. */
+            if (moved && canEmbed && router) {
+                NF.devices.installEmbeddedAp(router, null);
+                NF.notify.toast("AP integrado instalado en " + router.name, "success");
+                NF.state.selection = { kind: "device", id: router.id };
+                NF.bus.emit("selection:changed");
+                NF.render.refresh();
+                return;
+            }
+
             let wx, wy;
             if (moved && ev.clientX >= r.left && ev.clientX <= r.right &&
                 ev.clientY >= r.top && ev.clientY <= r.bottom) {

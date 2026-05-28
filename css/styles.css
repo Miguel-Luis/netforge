@@ -422,6 +422,20 @@ header {
     animation-delay: 2.26s
 }
 
+/* AP integrado en router: distintivo visual sutil
+   (mismo color teal, pero relleno más tenue y trazo más fino) */
+.wifi-fill.embedded,
+g.embedded .wifi-fill {
+    fill: rgba(45, 212, 191, .035)
+}
+
+.wifi-ring.embedded,
+g.embedded .wifi-ring {
+    stroke: rgba(45, 212, 191, .85);
+    stroke-width: 1.2px;
+    stroke-dasharray: 3 5
+}
+
 @keyframes wifiPulse {
     0% {
         transform: scale(.16);
@@ -580,6 +594,12 @@ header {
 .node.ssrc .card {
     box-shadow: 0 0 0 3px var(--ok), 0 0 22px -1px var(--ok);
     animation: bob 1s ease-in-out infinite
+}
+
+/* Router resaltado como destino válido para instalar un AP integrado */
+.node.drop-target .card {
+    box-shadow: 0 0 0 3px #2dd4bf, 0 0 28px -1px #2dd4bf;
+    transform: scale(1.06)
 }
 
 @keyframes bob {

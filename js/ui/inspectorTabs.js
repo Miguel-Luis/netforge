@@ -49,11 +49,12 @@ NF.tabs = NF.tabs || {};
             return tabEndNet(d);
         }
         if (tab === "wifi") {
-            if (t === "ap") return tabApWifi(d);
+            if (t === "ap")     return tabApWifi(d, d);
+            if (t === "router") return tabRouterWifi(d);
             return tabEndWifi(d);
         }
-        if (tab === "radio") return tabApRadio(d);
-        if (tab === "sec")   return tabApSec(d);
+        if (tab === "radio") return tabApRadio(d, d);
+        if (tab === "sec")   return tabApSec(d, d);
         if (tab === "ports") return tabSwitchPorts(d);
         if (tab === "vlan")  return tabSwitchVlan(d);
         if (tab === "adv") {
@@ -80,6 +81,7 @@ NF.tabs = NF.tabs || {};
         bindSwitchAdv(d);
         bindFw(d);
         bindAp(d);
+        bindRouterWifi(d);
         bindEndWifi(d);
         bindSvc(d);
     };
@@ -342,38 +344,69 @@ NF.tabs = NF.tabs || {};
             '<div class="hint">Próximamente: site-to-site IPsec / OpenVPN.</div>';
     }
 
-    function tabApWifi(d) {
-        return fld("SSID", inp("fSsid", d.ssid)) +
-            fld("Seguridad", selBox("fSec", NF.config.SECURITY_OPTIONS.map(s => [s, s]), d.security)) +
-            (d.security !== "Abierta" ? fld("Contraseña", inp("fPass", d.password, true)) : "") +
-            fld("VLAN", inp("fVlan", d.vlan, true, "number")) +
-            fld("SSID oculto", tog("fHidden", !!d.hidden, d.hidden ? "Oculto" : "Visible")) +
-            fld("Red de invitados (SSID)", inp("fGuest", d.guestSsid), "Vacío = sin red de invitados.");
+    /* Los siguientes 3 partials reciben `r` (contexto de radio).
+       Para un AP suelto, r === d. Para un router con AP integrado, r === d.embeddedAp. */
+    function tabApWifi(d, r) {
+        r = r || d;
+        return fld("SSID", inp("fSsid", r.ssid)) +
+            fld("Seguridad", selBox("fSec", NF.config.SECURITY_OPTIONS.map(s => [s, s]), r.security)) +
+            (r.security !== "Abierta" ? fld("Contraseña", inp("fPass", r.password, true)) : "") +
+            fld("VLAN", inp("fVlan", r.vlan, true, "number")) +
+            fld("SSID oculto", tog("fHidden", !!r.hidden, r.hidden ? "Oculto" : "Visible")) +
+            fld("Red de invitados (SSID)", inp("fGuest", r.guestSsid), "Vacío = sin red de invitados.");
     }
 
-    function tabApRadio(d) {
-        const r = NF.ip.apRange(d);
-        return fld("Banda", selBox("fBand", NF.config.BANDS.map(b => [b, b]), d.band)) +
+    function tabApRadio(d, r) {
+        r = r || d;
+        const px = NF.ip.apRange(r);
+        return fld("Banda", selBox("fBand", NF.config.BANDS.map(b => [b, b]), r.band)) +
             '<div class="row2">' +
-                fld("Canal", inp("fChan", d.channel, true, "number")) +
-                fld("Ancho (MHz)", selBox("fCw", NF.config.CHANNEL_WIDTHS.map(c => [String(c), c + " MHz"]), String(d.channelWidth))) +
+                fld("Canal", inp("fChan", r.channel, true, "number")) +
+                fld("Ancho (MHz)", selBox("fCw", NF.config.CHANNEL_WIDTHS.map(c => [String(c), c + " MHz"]), String(r.channelWidth))) +
             '</div>' +
             '<div class="field"><label>Potencia de transmisión</label>' +
                 '<div class="slider-row">' +
-                    '<input type="range" id="fTx" min="-3" max="30" step="1" value="' + d.txPower + '">' +
-                    '<span class="rng-val" id="txVal">' + d.txPower + ' dBm</span>' +
+                    '<input type="range" id="fTx" min="-3" max="30" step="1" value="' + r.txPower + '">' +
+                    '<span class="rng-val" id="txVal">' + r.txPower + ' dBm</span>' +
                 '</div>' +
-                '<div class="hint">Radio efectivo aproximado: <b id="rangeOut">' + r + '</b> px</div>' +
+                '<div class="hint">Radio efectivo aproximado: <b id="rangeOut">' + px + '</b> px</div>' +
             '</div>';
     }
 
-    function tabApSec(d) {
-        const macs = (d.macFilter || []).map((m, i) =>
+    function tabApSec(d, r) {
+        r = r || d;
+        const macs = (r.macFilter || []).map((m, i) =>
             '<div class="dns-row"><input class="mono" data-mac="' + i + '" value="' + esc(m) + '"><button class="rm" data-mac-rm="' + i + '">x</button></div>'
         ).join("") || '<div class="hint">Sin filtrado MAC. Todas las MACs pueden asociarse.</div>';
         return '<div class="tlabel">Filtrado por dirección MAC <button class="add" id="addMac">+ añadir</button></div>' +
             '<div id="macBox">' + macs + '</div>' +
             '<div class="hint" style="margin-top:6px">Solo las MACs en la lista podrán asociarse al SSID. Si la lista está vacía, no hay filtrado.</div>';
+    }
+
+    /* Tab WiFi del router: gestiona el AP integrado opcional.
+       Cuando no hay embeddedAp muestra CTA de instalación; cuando lo hay,
+       reutiliza los 3 partials del AP apuntando a d.embeddedAp. */
+    function tabRouterWifi(d) {
+        if (!d.embeddedAp) {
+            return '<div class="hint" style="line-height:1.5">' +
+                    'Los routers no emiten WiFi por sí solos. Instala un <b>AP integrado</b> ' +
+                    'para simular un combo doméstico (router + WiFi en una sola caja) y permitir ' +
+                    'conexiones inalámbricas hacia este equipo.' +
+                '</div>' +
+                '<button class="add" id="installAp" style="margin-top:10px;width:100%">+ Instalar AP integrado</button>' +
+                '<div class="hint" style="margin-top:8px">Tip: también puedes arrastrar un AP desde la paleta (o un AP del lienzo) sobre este router.</div>';
+        }
+        return '<div class="row-card" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;margin-bottom:8px">' +
+                '<span class="badge ok">AP integrado activo</span>' +
+                '<button class="rm" id="uninstallAp" style="position:static;width:auto;height:auto;padding:2px 8px;font-size:11px">Retirar</button>' +
+            '</div>' +
+            tabApWifi(d, d.embeddedAp) +
+            '<div class="section-divider"></div>' +
+            '<div class="tlabel">Radio</div>' +
+            tabApRadio(d, d.embeddedAp) +
+            '<div class="section-divider"></div>' +
+            '<div class="tlabel">Seguridad</div>' +
+            tabApSec(d, d.embeddedAp);
     }
 
     function tabEndWifi(d) {
@@ -671,41 +704,64 @@ NF.tabs = NF.tabs || {};
         });
     }
 
-    function bindAp(d) {
-        if (d.type !== "ap") return;
-        if ($("#fSsid")) $("#fSsid").addEventListener("input", e => { d.ssid = e.target.value; NF.devices.update(d); });
+    /* Enlaza los inputs de los partials de AP (fSsid/fSec/.../fTx, mac filter)
+       a los campos del objeto `r` (radio). Persiste sobre `d` (el host). */
+    function bindRadioFields(d, r) {
+        if ($("#fSsid")) $("#fSsid").addEventListener("input", e => { r.ssid = e.target.value; NF.devices.update(d); });
         if ($("#fSec")) $("#fSec").addEventListener("change", e => {
-            d.security = e.target.value; NF.devices.update(d); NF.inspector.render();
+            r.security = e.target.value; NF.devices.update(d); NF.inspector.render();
         });
-        if ($("#fPass")) $("#fPass").addEventListener("input", e => { d.password = e.target.value; NF.devices.update(d); });
-        if ($("#fVlan")) $("#fVlan").addEventListener("input", e => { d.vlan = +e.target.value || 1; NF.devices.update(d); });
+        if ($("#fPass")) $("#fPass").addEventListener("input", e => { r.password = e.target.value; NF.devices.update(d); });
+        if ($("#fVlan")) $("#fVlan").addEventListener("input", e => { r.vlan = +e.target.value || 1; NF.devices.update(d); });
         if ($("#fHidden")) $("#fHidden").addEventListener("click", () => {
-            d.hidden = !d.hidden; NF.devices.update(d); NF.inspector.render();
+            r.hidden = !r.hidden; NF.devices.update(d); NF.inspector.render();
         });
-        if ($("#fGuest")) $("#fGuest").addEventListener("input", e => { d.guestSsid = e.target.value; NF.devices.update(d); });
-        if ($("#fBand")) $("#fBand").addEventListener("change", e => { d.band = e.target.value; NF.devices.update(d); });
-        if ($("#fChan")) $("#fChan").addEventListener("input", e => { d.channel = +e.target.value || 1; NF.devices.update(d); });
-        if ($("#fCw")) $("#fCw").addEventListener("change", e => { d.channelWidth = +e.target.value || 20; NF.devices.update(d); });
+        if ($("#fGuest")) $("#fGuest").addEventListener("input", e => { r.guestSsid = e.target.value; NF.devices.update(d); });
+        if ($("#fBand")) $("#fBand").addEventListener("change", e => { r.band = e.target.value; NF.devices.update(d); });
+        if ($("#fChan")) $("#fChan").addEventListener("input", e => { r.channel = +e.target.value || 1; NF.devices.update(d); });
+        if ($("#fCw")) $("#fCw").addEventListener("change", e => { r.channelWidth = +e.target.value || 20; NF.devices.update(d); });
         if ($("#fTx")) $("#fTx").addEventListener("input", e => {
-            d.txPower = +e.target.value;
-            d.range = NF.ip.apRange(d);
-            const tv = $("#txVal"); if (tv) tv.textContent = d.txPower + " dBm";
-            const ro = $("#rangeOut"); if (ro) ro.textContent = d.range;
+            r.txPower = +e.target.value;
+            if (d.type === "ap") d.range = NF.ip.apRange(r);
+            const tv = $("#txVal"); if (tv) tv.textContent = r.txPower + " dBm";
+            const ro = $("#rangeOut"); if (ro) ro.textContent = NF.ip.apRange(r);
             NF.render.refresh();
             NF.devices.update(d);
         });
         const insp = inspectorEl();
         insp.querySelectorAll("[data-mac]").forEach(el => el.addEventListener("input", e => {
-            d.macFilter[+el.dataset.mac] = e.target.value; NF.devices.update(d);
+            r.macFilter[+el.dataset.mac] = e.target.value; NF.devices.update(d);
         }));
         insp.querySelectorAll("[data-mac-rm]").forEach(el => el.addEventListener("click", () => {
-            d.macFilter.splice(+el.dataset.macRm, 1); NF.devices.update(d); NF.inspector.render();
+            r.macFilter.splice(+el.dataset.macRm, 1); NF.devices.update(d); NF.inspector.render();
         }));
         if ($("#addMac")) $("#addMac").addEventListener("click", () => {
-            if (!d.macFilter) d.macFilter = [];
-            d.macFilter.push(NF.ip.genMac());
+            if (!r.macFilter) r.macFilter = [];
+            r.macFilter.push(NF.ip.genMac());
             NF.devices.update(d); NF.inspector.render();
         });
+    }
+
+    function bindAp(d) {
+        if (d.type !== "ap") return;
+        bindRadioFields(d, d);
+    }
+
+    function bindRouterWifi(d) {
+        if (d.type !== "router") return;
+        if ($("#installAp")) $("#installAp").addEventListener("click", () => {
+            NF.devices.installEmbeddedAp(d, null);
+            NF.notify.toast("AP integrado instalado en " + d.name, "success");
+            NF.inspector.render();
+            NF.render.refresh();
+        });
+        if ($("#uninstallAp")) $("#uninstallAp").addEventListener("click", () => {
+            NF.devices.uninstallEmbeddedAp(d);
+            NF.notify.toast("AP integrado retirado de " + d.name, "warn");
+            NF.inspector.render();
+            NF.render.refresh();
+        });
+        if (d.embeddedAp) bindRadioFields(d, d.embeddedAp);
     }
 
     function bindEndWifi(d) {

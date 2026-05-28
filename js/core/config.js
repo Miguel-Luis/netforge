@@ -56,7 +56,7 @@ NF.config = (function () {
     /* Pestañas del inspector por tipo de dispositivo. */
     const TABS_BY_TYPE = {
         internet: [["red", "Red"], ["status", "Estado"]],
-        router: [["general", "General"], ["net", "Red"], ["dhcp", "DHCP"], ["adv", "Avanzado"]],
+        router: [["general", "General"], ["net", "Red"], ["wifi", "WiFi"], ["dhcp", "DHCP"], ["adv", "Avanzado"]],
         switch: [["general", "General"], ["ports", "Puertos"], ["vlan", "VLAN"], ["adv", "Avanzado"]],
         firewall: [["general", "General"], ["zones", "Zonas"], ["rules", "Reglas"], ["adv", "Avanzado"]],
         ap: [["general", "General"], ["wifi", "WiFi"], ["radio", "Radio"], ["sec", "Seguridad"]],
@@ -79,7 +79,8 @@ NF.config = (function () {
         "txPower", "hidden", "macFilter", "guestSsid", "vlan",
         "services", "exposedPorts",
         "wifiSsid", "wifiPassword",
-        "latencyBase", "jitter", "loss", "publicBlock"
+        "latencyBase", "jitter", "loss", "publicBlock",
+        "embeddedAp"
     ];
     const LINK_FIELDS = [
         "id", "from", "to", "kind", "status", "bandwidthMbps", "latencyMs", "lossPct", "mtu",

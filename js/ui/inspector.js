@@ -96,13 +96,17 @@ NF.inspector = (function () {
         const dst = a && b ? Math.round(NF.geo.dist(a, b)) : 0;
         let rssi = null;
         if (l.kind === "wireless" && a && b) {
-            const ap = a.type === "ap" ? a : (b.type === "ap" ? b : null);
-            const other = ap === a ? b : a;
-            if (ap) rssi = NF.ip.estRssi(NF.geo.dist(ap, other), ap.txPower || 18);
+            const ra = NF.ip.radioConfig(a), rb = NF.ip.radioConfig(b);
+            let ap = null, radio = null, other = null;
+            if (ra) { ap = a; radio = ra; other = b; }
+            else if (rb) { ap = b; radio = rb; other = a; }
+            if (ap && other) rssi = NF.ip.estRssi(NF.geo.dist(ap, other), radio.txPower || 18);
         }
         const rssiClass = rssi == null ? "" : (rssi >= -65 ? "ok" : rssi >= -78 ? "warn" : "err");
         const rssiLabel = rssi == null ? "N/A" : (rssi >= -65 ? "Excelente" : rssi >= -78 ? "Aceptable" : "Pobre");
         const esc = NF.dom.esc;
+        /* ¿Este par puede ser inalámbrico? Si no, deshabilitamos la opción. */
+        const wirelessAllowed = a && b && NF.links.canBeWireless(a, b);
 
         insp.innerHTML = `
         <div class="insp-head">
@@ -115,7 +119,7 @@ NF.inspector = (function () {
         <div class="field"><label>Tipo de enlace</label>
           <select id="fKind">
             <option value="wired" ${l.kind === "wired" ? "selected" : ""}>Cable Ethernet</option>
-            <option value="wireless" ${l.kind === "wireless" ? "selected" : ""}>Inalámbrico (WiFi)</option>
+            <option value="wireless" ${l.kind === "wireless" ? "selected" : ""} ${wirelessAllowed ? "" : "disabled"}>Inalámbrico (WiFi)${wirelessAllowed ? "" : " — sin radio en los extremos"}</option>
           </select></div>
 
         <div class="field"><label>Estado del enlace</label>
@@ -157,7 +161,13 @@ NF.inspector = (function () {
 
         const $ = NF.dom.$;
         $("#fKind").addEventListener("change", e => {
-            l.kind = e.target.value;
+            const newKind = e.target.value;
+            if (newKind === "wireless" && !wirelessAllowed) {
+                NF.notify.toast("Estos extremos no tienen radio WiFi.", "error");
+                e.target.value = l.kind;
+                return;
+            }
+            l.kind = newKind;
             Object.assign(l, NF.links.defaultsForLink(l.kind), { bandwidthMbps: l.bandwidthMbps, mtu: l.mtu });
             NF.links.update(l);
             render();

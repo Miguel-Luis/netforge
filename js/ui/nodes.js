@@ -43,6 +43,16 @@ NF.nodes = (function () {
 
     function updateAll() { NF.state.devices.forEach(updateNode); }
 
+    /* Devuelve el primer .node bajo el cursor distinto al excluido. */
+    function nodeUnderCursor(clientX, clientY, excludeEl) {
+        const els = document.elementsFromPoint(clientX, clientY);
+        for (const el of els) {
+            const n = el.closest && el.closest(".node");
+            if (n && n !== excludeEl) return n;
+        }
+        return null;
+    }
+
     function onNodeDown(e, d) {
         e.stopPropagation();
         if (NF.state.simRunning) return;
@@ -50,18 +60,55 @@ NF.nodes = (function () {
         const start = { x: e.clientX, y: e.clientY };
         const orig = { x: d.x, y: d.y };
         let moved = false;
+        /* Drop target = router-sin-AP cuando arrastramos un AP encima. */
+        let dropTargetEl = null, dropTargetDev = null;
+        const canEmbed = d.type === "ap";
+        function clearDropTarget() {
+            if (dropTargetEl) dropTargetEl.classList.remove("drop-target");
+            dropTargetEl = null; dropTargetDev = null;
+        }
         function mv(ev) {
             if (!moved && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) > 5) moved = true;
-            if (moved) {
-                d.x = Math.round(orig.x + (ev.clientX - start.x) / NF.state.view.scale);
-                d.y = Math.round(orig.y + (ev.clientY - start.y) / NF.state.view.scale);
-                positionNode(d);
-                NF.render.refresh();
+            if (!moved) return;
+            d.x = Math.round(orig.x + (ev.clientX - start.x) / NF.state.view.scale);
+            d.y = Math.round(orig.y + (ev.clientY - start.y) / NF.state.view.scale);
+            positionNode(d);
+            NF.render.refresh();
+            if (!canEmbed) return;
+            const overEl = nodeUnderCursor(ev.clientX, ev.clientY, d._el);
+            const overDev = overEl ? NF.devices.byId(overEl.dataset.id) : null;
+            const target = overDev && overDev.type === "router" && !overDev.embeddedAp ? overDev : null;
+            if (target) {
+                if (dropTargetDev !== target) {
+                    clearDropTarget();
+                    dropTargetDev = target;
+                    dropTargetEl = overEl;
+                    overEl.classList.add("drop-target");
+                }
+            } else {
+                clearDropTarget();
             }
         }
         function up() {
             window.removeEventListener("pointermove", mv);
             window.removeEventListener("pointerup", up);
+            const router = dropTargetDev;
+            clearDropTarget();
+            if (moved && canEmbed && router) {
+                /* Fusionar AP en router: copia config, migra inalámbricos, borra AP. */
+                const res = NF.devices.mergeApIntoRouter(d, router);
+                if (res && res.ok) {
+                    NF.notify.toast(d.name + " integrado en " + router.name, "success");
+                    NF.state.selection = { kind: "device", id: router.id };
+                    NF.bus.emit("selection:changed");
+                    NF.render.refresh();
+                } else {
+                    /* No se pudo: revertir posición. */
+                    d.x = orig.x; d.y = orig.y; positionNode(d); NF.render.refresh();
+                    if (res && res.reason) NF.notify.toast(res.reason, "error");
+                }
+                return;
+            }
             if (moved) NF.devices.move(d);
             else nodeClick(d);
         }

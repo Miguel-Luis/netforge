@@ -35,9 +35,16 @@ NF.render = (function () {
         const refs = NF.dom.refs();
         if (!refs.wifiLayer) return;
         const have = new Set();
-        NF.state.devices.filter(d => d.type === "ap").forEach(d => {
+        /* APs sueltos + routers con AP integrado (combo doméstico). */
+        const radioDevs = NF.state.devices.filter(d => NF.ip.hasWifiRadio(d));
+        radioDevs.forEach(d => {
             have.add(d.id);
-            d.range = NF.ip.apRange(d);
+            const radio = NF.ip.radioConfig(d);
+            const range = NF.ip.apRange(radio);
+            /* Mantengo d.range solo en APs sueltos por compatibilidad de
+               persistencia. En routers el alcance se deriva de embeddedAp. */
+            if (d.type === "ap") d.range = range;
+            const embedded = d.type === "router";
             let g = refs.wifiLayer.querySelector('[data-wifi="' + d.id + '"]');
             if (!g) {
                 g = NF.dom.svgEl("g");
@@ -45,10 +52,12 @@ NF.render = (function () {
                 g.innerHTML = '<circle class="wifi-fill"/><circle class="wifi-ring r1"/><circle class="wifi-ring r2"/><circle class="wifi-ring r3"/>';
                 refs.wifiLayer.appendChild(g);
             }
+            /* Distintivo visual sutil para AP integrado en router. */
+            g.classList.toggle("embedded", embedded);
             g.querySelectorAll("circle").forEach(c => {
                 c.setAttribute("cx", d.x);
                 c.setAttribute("cy", d.y);
-                c.setAttribute("r", Math.max(1, d.range));
+                c.setAttribute("r", Math.max(1, range));
             });
             g.style.display = d.on ? "" : "none";
         });
@@ -86,7 +95,8 @@ NF.render = (function () {
         if (!devices.length) { v.x = 0; v.y = 0; v.scale = 1; applyView(); return; }
         let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
         devices.forEach(d => {
-            const p = d.type === "ap" ? NF.ip.apRange(d) + 40 : 70;
+            const radio = NF.ip.radioConfig(d);
+            const p = radio ? NF.ip.apRange(radio) + 40 : 70;
             minX = Math.min(minX, d.x - p); maxX = Math.max(maxX, d.x + p);
             minY = Math.min(minY, d.y - p); maxY = Math.max(maxY, d.y + p);
         });
@@ -107,6 +117,9 @@ NF.render = (function () {
     /* === Suscripciones al bus === */
     function init() {
         NF.bus.on("device:moved", refresh);
+        NF.bus.on("device:updated", refresh);
+        NF.bus.on("device:added", refresh);
+        NF.bus.on("device:deleted", refresh);
         NF.bus.on("link:added", refresh);
         NF.bus.on("link:deleted", refresh);
         NF.bus.on("link:updated", refresh);

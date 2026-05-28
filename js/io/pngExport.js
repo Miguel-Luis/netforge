@@ -16,7 +16,8 @@ NF.png = (function () {
 
         let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
         S.devices.forEach(d => {
-            const p = d.type === "ap" ? apRange(d) : 62;
+            const radio = NF.ip.radioConfig(d);
+            const p = radio ? apRange(radio) : 62;
             minX = Math.min(minX, d.x - p); maxX = Math.max(maxX, d.x + p);
             minY = Math.min(minY, d.y - p); maxY = Math.max(maxY, d.y + p);
         });
@@ -37,16 +38,21 @@ NF.png = (function () {
                 ctx.beginPath(); ctx.arc(x, y, 1, 0, 7); ctx.fill();
             }
 
-        /* Halos WiFi */
-        S.devices.filter(d => d.type === "ap" && d.on).forEach(d => {
-            const r = apRange(d);
+        /* Halos WiFi — APs sueltos y routers con AP integrado. */
+        S.devices.filter(d => NF.ip.hasWifiRadio(d) && d.on).forEach(d => {
+            const radio = NF.ip.radioConfig(d);
+            const r = apRange(radio);
+            const embedded = d.type === "router";
             const grd = ctx.createRadialGradient(d.x, d.y, 4, d.x, d.y, r);
-            grd.addColorStop(0, "rgba(45,212,191,.16)");
+            /* Distintivo visual sutil: el combo router+AP usa un relleno
+               un poco más suave para no competir con el icono del router. */
+            grd.addColorStop(0, embedded ? "rgba(45,212,191,.10)" : "rgba(45,212,191,.16)");
             grd.addColorStop(1, "rgba(45,212,191,0)");
             ctx.fillStyle = grd;
             ctx.beginPath(); ctx.arc(d.x, d.y, r, 0, 7); ctx.fill();
-            ctx.strokeStyle = "rgba(45,212,191,.45)";
-            ctx.lineWidth = 1.4; ctx.setLineDash([4, 7]);
+            ctx.strokeStyle = embedded ? "rgba(45,212,191,.55)" : "rgba(45,212,191,.45)";
+            ctx.lineWidth = embedded ? 1.2 : 1.4;
+            ctx.setLineDash(embedded ? [2, 5] : [4, 7]);
             ctx.beginPath(); ctx.arc(d.x, d.y, r, 0, 7); ctx.stroke();
             ctx.setLineDash([]);
         });

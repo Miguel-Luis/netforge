@@ -86,7 +86,10 @@ NF.devices = (function () {
                         leaseHours: 24, reservations: []
                     },
                     dnsForwarder: true,
-                    acl: []
+                    acl: [],
+                    /* AP integrado opcional: null = router puro;
+                       objeto = combo router+AP (doméstico). */
+                    embeddedAp: null
                 };
             case "switch":
                 return {
@@ -205,10 +208,101 @@ NF.devices = (function () {
     function update(d) { NF.bus.emit("device:updated", d); }
     function move(d) { NF.bus.emit("device:moved", d); }
 
+    /* ===== AP integrado en router =====
+       Permite modelar un combo "router doméstico" (router + AP en una caja). */
+
+    function defaultEmbeddedAp() {
+        const C = NF.config;
+        return {
+            ssid: C.DEFAULT_SSID,
+            security: "WPA2",
+            password: C.DEFAULT_WIFI_PASS,
+            band: "2.4GHz",
+            channel: 6,
+            channelWidth: 20,
+            txPower: 18,
+            hidden: false,
+            macFilter: [],
+            guestSsid: "",
+            vlan: 1
+        };
+    }
+
+    /* Copia los campos relevantes de una config AP a embeddedAp del router.
+       `apSrc` puede ser un Device AP o un objeto con esos campos. */
+    function buildEmbeddedFrom(apSrc) {
+        const def = defaultEmbeddedAp();
+        if (!apSrc) return def;
+        const keys = ["ssid", "security", "password", "band", "channel",
+                      "channelWidth", "txPower", "hidden", "macFilter",
+                      "guestSsid", "vlan"];
+        const e = { ...def };
+        for (const k of keys) if (apSrc[k] !== undefined) e[k] = apSrc[k];
+        if (Array.isArray(apSrc.macFilter)) e.macFilter = [...apSrc.macFilter];
+        return e;
+    }
+
+    /* Instala (o reemplaza) el AP integrado del router. */
+    function installEmbeddedAp(router, apSrc) {
+        if (!router || router.type !== "router") return false;
+        router.embeddedAp = buildEmbeddedFrom(apSrc);
+        update(router);
+        return true;
+    }
+
+    /* Fusiona un nodo AP existente sobre un router:
+       1) copia la config a embeddedAp,
+       2) migra sus enlaces inalámbricos al router,
+       3) elimina el nodo AP (sus enlaces cableados se borran con él). */
+    function mergeApIntoRouter(ap, router) {
+        if (!ap || ap.type !== "ap") return { ok: false, reason: "Origen no es un AP" };
+        if (!router || router.type !== "router") return { ok: false, reason: "Destino no es un router" };
+        if (router.embeddedAp) return { ok: false, reason: `${router.name} ya tiene un AP integrado` };
+
+        router.embeddedAp = buildEmbeddedFrom(ap);
+
+        /* Migra enlaces inalámbricos hacia el router; evita duplicados. */
+        const linksToMigrate = NF.state.links.filter(l =>
+            (l.from === ap.id || l.to === ap.id) && l.kind === "wireless"
+        );
+        for (const l of linksToMigrate) {
+            const otherId = l.from === ap.id ? l.to : l.from;
+            const dup = NF.state.links.find(o => o !== l && (
+                (o.from === router.id && o.to === otherId) ||
+                (o.to === router.id && o.from === otherId)
+            ));
+            if (dup) continue; /* lo borrará remove(ap) abajo */
+            if (l.from === ap.id) l.from = router.id;
+            else l.to = router.id;
+            NF.links.assignMeta(l);
+            NF.bus.emit("link:updated", l);
+        }
+
+        const apName = ap.name;
+        remove(ap.id); /* esto también borra los enlaces residuales del AP */
+        update(router);
+        NF.notify.log(`${apName} integrado en ${router.name}`, "success");
+        return { ok: true };
+    }
+
+    /* Quita el AP integrado y elimina los enlaces inalámbricos asociados. */
+    function uninstallEmbeddedAp(router) {
+        if (!router || router.type !== "router" || !router.embeddedAp) return false;
+        const wireless = NF.state.links.filter(l =>
+            (l.from === router.id || l.to === router.id) && l.kind === "wireless"
+        );
+        for (const l of wireless) NF.links.remove(l.id);
+        router.embeddedAp = null;
+        update(router);
+        NF.notify.log(`AP integrado de ${router.name} retirado`, "warn");
+        return true;
+    }
+
     return {
         byId, nextName, nextIp,
         makeSwitchPorts, defaultsFor,
         add, fromSerialized, remove,
-        update, move
+        update, move,
+        defaultEmbeddedAp, installEmbeddedAp, mergeApIntoRouter, uninstallEmbeddedAp
     };
 })();
