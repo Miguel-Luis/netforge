@@ -86,6 +86,7 @@
 
         <div id="main">
             <aside id="palette"></aside>
+            <div class="resizer resizer-v" data-resize="palette" title="Arrastra para redimensionar · doble clic para restablecer"></div>
 
             <div id="stage">
                 <div id="grid"></div>
@@ -143,9 +144,11 @@
                 </div>
             </div>
 
+            <div class="resizer resizer-v" data-resize="inspector" title="Arrastra para redimensionar · doble clic para restablecer"></div>
             <aside id="inspector"></aside>
         </div>
 
+        <div class="resizer resizer-h" data-resize="console" title="Arrastra para redimensionar · doble clic para restablecer"></div>
         <div id="console">
             <div class="con-head">
                 <span class="live"></span><span class="ct">Consola de simulación</span>
@@ -196,6 +199,7 @@
     <script src="js/ui/palette.js"></script>
     <script src="js/ui/canvas.js"></script>
     <script src="js/ui/modes.js"></script>
+    <script src="js/ui/resizers.js"></script>
 
     <!-- io -->
     <script src="js/io/persistence.js"></script>

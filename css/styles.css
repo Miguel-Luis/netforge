@@ -223,6 +223,58 @@ header {
     min-height: 0
 }
 
+/* ---------- Resizers (divisores arrastrables entre paneles) ---------- */
+.resizer {
+    flex-shrink: 0;
+    position: relative;
+    background: transparent;
+    transition: background .14s ease, box-shadow .14s ease;
+    z-index: 5;
+}
+
+.resizer-v {
+    width: 5px;
+    cursor: col-resize;
+    align-self: stretch;
+}
+
+.resizer-h {
+    height: 5px;
+    cursor: row-resize;
+    width: 100%;
+}
+
+/* Línea fina visible solo al pasar por encima o durante el arrastre */
+.resizer::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity .14s ease;
+    pointer-events: none;
+}
+
+.resizer:hover::after,
+.resizer.dragging::after {
+    opacity: .55;
+}
+
+/* Mientras se está arrastrando, todo el cursor adopta la forma adecuada
+   y se deshabilita la selección de texto */
+body.is-resizing {
+    cursor: col-resize !important;
+    user-select: none !important;
+}
+
+body.is-resizing.is-resizing-h {
+    cursor: row-resize !important;
+}
+
+body.is-resizing * {
+    cursor: inherit !important;
+}
+
 /* ---------- Palette ---------- */
 #palette {
     width: 210px;
