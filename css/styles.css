@@ -459,6 +459,72 @@ header {
     filter: drop-shadow(0 0 7px #2dd4bf)
 }
 
+.packet.resp {
+    fill: #5be3ad;
+    filter: drop-shadow(0 0 7px #34d399)
+}
+
+.packet.fail {
+    fill: #f0506e;
+    filter: drop-shadow(0 0 7px #f0506e)
+}
+
+/* simulation panel */
+#simPanel {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    background: rgba(14, 20, 36, .92);
+    border: 1px solid var(--border2);
+    backdrop-filter: blur(8px);
+    padding: 6px 10px;
+    border-radius: 11px;
+    z-index: 16;
+    display: none;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: .5px;
+    text-transform: uppercase;
+}
+
+#simPanel.show {
+    display: flex
+}
+
+#simPanel select {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 4px 6px;
+    font-size: 11.5px;
+    font-family: inherit;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+#simPanel select:focus {
+    outline: none;
+    border-color: var(--ok);
+    box-shadow: 0 0 0 3px rgba(52, 211, 153, .15)
+}
+
+#simPanel .sp-port {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10.5px;
+    color: var(--ok);
+    background: rgba(52, 211, 153, .12);
+    padding: 2px 7px;
+    border-radius: 6px;
+    text-transform: lowercase;
+    letter-spacing: 0;
+    font-weight: 700;
+}
+
 /* nodes */
 .node {
     position: absolute;

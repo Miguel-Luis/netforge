@@ -220,6 +220,142 @@ function defaultsForLink(kind) {
     };
 }
 
+/* ============================ SERVICES CATALOG ============================ */
+/* Cada entrada: clave técnica → { label, port, proto, kind }
+   kind: "ping" → no chequea servicio; "dhcp" → flujo especial; "dns" → especial; "tcp"/"udp" → estándar */
+const SERVICES = {
+    ping:  { label: "Ping (ICMP)",   port: 0,    proto: "icmp", kind: "ping" },
+    http:  { label: "HTTP",          port: 80,   proto: "tcp",  kind: "tcp",  matchSvcName: "HTTP" },
+    https: { label: "HTTPS",         port: 443,  proto: "tcp",  kind: "tcp",  matchSvcName: "HTTPS" },
+    dns:   { label: "DNS (consulta)", port: 53,   proto: "udp",  kind: "dns",  matchSvcName: "DNS" },
+    dhcp:  { label: "DHCP (request)", port: 67,   proto: "udp",  kind: "dhcp" },
+    ftp:   { label: "FTP",           port: 21,   proto: "tcp",  kind: "tcp",  matchSvcName: "FTP" },
+    smtp:  { label: "SMTP",          port: 25,   proto: "tcp",  kind: "tcp",  matchSvcName: "SMTP" },
+    db:    { label: "Base de datos", port: 3306, proto: "tcp",  kind: "tcp",  matchSvcName: "DB" },
+    files: { label: "Archivos (SMB)", port: 445,  proto: "tcp",  kind: "tcp",  matchSvcName: "Files" },
+    rtsp:  { label: "RTSP (cámara)", port: 554,  proto: "tcp",  kind: "tcp",  matchEpName: "RTSP" },
+    ipp:   { label: "IPP (impresora)", port: 631, proto: "tcp", kind: "tcp",  matchEpName: "IPP" }
+};
+let currentService = "ping";
+
+/* Estado in-memory de DHCP: { fwId/srvId: { mac → ip } } para no reasignar al mismo cliente. */
+const dhcpAssignments = {};
+
+function intToIp(n) {
+    return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join(".");
+}
+
+/* ¿El dispositivo provee servicio DHCP? */
+function isDhcpServer(d) {
+    if (!d || !d.on) return false;
+    if (d.type === "router") return !!(d.dhcp && d.dhcp.enabled);
+    if (d.type === "server") return (d.services || []).some(s => s.name === "DHCP" && s.enabled);
+    return false;
+}
+/* ¿El dispositivo provee servicio DNS? */
+function isDnsServer(d) {
+    if (!d || !d.on) return false;
+    if (d.type === "server") return (d.services || []).some(s => s.name === "DNS" && s.enabled);
+    if (d.type === "router") return !!d.dnsForwarder;
+    return false;
+}
+
+/* Busca el dispositivo cuya IP coincide. */
+function deviceByIp(ip) {
+    if (!ip) return null;
+    return devices.find(d => d.ip === ip ||
+        (d.interfaces && d.interfaces.some(i => i.ip === ip))) || null;
+}
+
+/* Devuelve si el destino expone el servicio pedido. Para ping: siempre OK. */
+function serviceAvailableAt(dst, svcKey) {
+    if (!dst || !dst.on) return { ok: false, reason: dst ? `${dst.name} apagado` : "Destino desconocido" };
+    const svc = SERVICES[svcKey];
+    if (!svc) return { ok: true };
+    if (svc.kind === "ping") return { ok: true };
+    if (svc.kind === "dhcp") {
+        if (!isDhcpServer(dst)) return { ok: false, reason: `${dst.name} no provee DHCP` };
+        return { ok: true };
+    }
+    if (svc.kind === "dns") {
+        if (!isDnsServer(dst)) return { ok: false, reason: `${dst.name} no tiene servicio DNS activo` };
+        return { ok: true };
+    }
+    /* Servidor con catálogo de servicios. */
+    if (dst.type === "server" && svc.matchSvcName) {
+        const s = (dst.services || []).find(x => x.name === svc.matchSvcName);
+        if (!s) return { ok: false, reason: `${dst.name} no tiene servicio ${svc.matchSvcName}` };
+        if (!s.enabled) return { ok: false, reason: `${dst.name} tiene ${svc.matchSvcName} apagado` };
+        return { ok: true };
+    }
+    /* Dispositivo final con exposedPorts (printer/camera). */
+    if (svc.matchEpName && (dst.exposedPorts || []).length) {
+        const ep = dst.exposedPorts.find(x => x.name === svc.matchEpName);
+        if (!ep) return { ok: false, reason: `${dst.name} no expone ${svc.matchEpName}` };
+        if (!ep.enabled) return { ok: false, reason: `${dst.name} tiene ${svc.matchEpName} deshabilitado` };
+        return { ok: true };
+    }
+    /* Búsqueda genérica por puerto. */
+    const eps = dst.exposedPorts || [];
+    const match = eps.find(x => +x.port === svc.port && x.proto === svc.proto && x.enabled);
+    if (match) return { ok: true };
+    if (dst.type === "server") {
+        const s = (dst.services || []).find(x => +x.port === svc.port && x.proto === svc.proto && x.enabled);
+        if (s) return { ok: true };
+    }
+    return { ok: false, reason: `${dst.name} no responde en ${svc.proto}/${svc.port}` };
+}
+
+/* ===== DHCP: asignación desde el rango configurado ===== */
+function dhcpAllocate(dhcpDev, requesterMac) {
+    const cfg = dhcpDev.type === "router" ? dhcpDev.dhcp : null;
+    let rangeStart, rangeEnd, gateway, mask, dns;
+    if (dhcpDev.type === "router" && cfg) {
+        rangeStart = cfg.rangeStart;
+        rangeEnd = cfg.rangeEnd;
+        const lan = (dhcpDev.interfaces || []).find(i => i.type === "lan") || dhcpDev.interfaces?.[0];
+        gateway = lan ? lan.ip : dhcpDev.ip;
+        mask = lan ? lan.mask : "255.255.255.0";
+        dns = (dhcpDev.dns && dhcpDev.dns.length) ? dhcpDev.dns : ["8.8.8.8"];
+        const resv = (cfg.reservations || []).find(r => r.mac === requesterMac);
+        if (resv && resv.ip) return { ip: resv.ip, mask, gateway, dns };
+    } else if (dhcpDev.type === "server") {
+        rangeStart = "192.168.1.50";
+        rangeEnd = "192.168.1.99";
+        gateway = dhcpDev.gateway || "192.168.1.1";
+        mask = dhcpDev.mask || "255.255.255.0";
+        dns = (dhcpDev.dns && dhcpDev.dns.length) ? dhcpDev.dns : [dhcpDev.ip];
+    } else return null;
+
+    if (!dhcpAssignments[dhcpDev.id]) dhcpAssignments[dhcpDev.id] = {};
+    const cache = dhcpAssignments[dhcpDev.id];
+    if (cache[requesterMac]) return { ip: cache[requesterMac], mask, gateway, dns };
+
+    const start = ipToInt(rangeStart), end = ipToInt(rangeEnd);
+    if (start == null || end == null) return null;
+    const used = new Set();
+    devices.forEach(d => { if (d.ip) used.add(d.ip); });
+    Object.values(cache).forEach(ip => used.add(ip));
+    for (let n = start; n <= end; n++) {
+        const ip = intToIp(n);
+        if (!used.has(ip)) {
+            cache[requesterMac] = ip;
+            return { ip, mask, gateway, dns };
+        }
+    }
+    return null;
+}
+
+/* ===== DNS: tabla simple por hostname → IP. ===== */
+/* Por defecto resolvemos cualquier hostname conocido (devices.hostname) si el server tiene DNS activo. */
+function dnsResolve(serverDev, hostname) {
+    if (!serverDev || !isDnsServer(serverDev)) return null;
+    const h = String(hostname || "").toLowerCase().trim();
+    if (!h) return null;
+    const dev = devices.find(d => (d.hostname || "").toLowerCase() === h || (d.name || "").toLowerCase() === h);
+    return dev ? dev.ip : null;
+}
+
 /* ============================ PORT / ZONE ASSIGNMENT ============================ */
 function nextFreeSwitchPort(switchDev, ignoreLinkId) {
     const used = new Set();
@@ -524,6 +660,12 @@ function nodeClick(d) {
             pendingConnect = null; rubber.removeAttribute("d"); updateAllNodes(); setHint();
         }
     } else if (mode === "simulate") {
+        const svc = SERVICES[currentService];
+        /* DHCP: el cliente es el único click necesario; el servidor se autodescubre. */
+        if (svc && svc.kind === "dhcp" && !pendingSim) {
+            runSimulation(d, d);
+            return;
+        }
         if (!pendingSim) { pendingSim = d; updateAllNodes(); setHint(); }
         else {
             const src = pendingSim; pendingSim = null; updateAllNodes(); setHint();
@@ -540,9 +682,48 @@ function linkKind(a, b) {
     if (bw && TYPES[a.type].wireless) return "wireless";
     return "wired";
 }
+
+/* Reglas de conectividad realistas. Devuelve {ok} o {ok:false, reason}. */
+function validateConnection(a, b) {
+    if (!a || !b) return { ok: false, reason: "Dispositivos inválidos." };
+    if (a.id === b.id) return { ok: false, reason: "No puedes conectar un dispositivo consigo mismo." };
+
+    /* Smartphone: solo se conecta (por WiFi) a un punto de acceso. */
+    if (a.type === "phone" || b.type === "phone") {
+        const phone = a.type === "phone" ? a : b;
+        const other = phone === a ? b : a;
+        if (other.type !== "ap") {
+            return {
+                ok: false,
+                reason: `${phone.name} solo se conecta por WiFi a un punto de acceso.`
+            };
+        }
+    }
+
+    /* Internet: solo se conecta a router, firewall u otra nube. */
+    if (a.type === "internet" || b.type === "internet") {
+        const inet = a.type === "internet" ? a : b;
+        const other = inet === a ? b : a;
+        if (!["router", "firewall", "internet"].includes(other.type)) {
+            return {
+                ok: false,
+                reason: `Internet solo se conecta a un router, firewall u otra nube.`
+            };
+        }
+    }
+
+    return { ok: true };
+}
+
 function createLink(a, b) {
     if (links.some(l => (l.from === a.id && l.to === b.id) || (l.from === b.id && l.to === a.id))) {
         toast("Esos dispositivos ya están conectados", "info"); return;
+    }
+    const v = validateConnection(a, b);
+    if (!v.ok) {
+        log("Conexión rechazada: " + v.reason, "error");
+        toast(v.reason, "error");
+        return;
     }
     const kind = linkKind(a, b);
     const l = { id: "l" + (idSeq++), from: a.id, to: b.id, kind, status: "up", ...defaultsForLink(kind) };
@@ -701,7 +882,25 @@ function setMode(m) {
         b.classList.toggle("cn", b.dataset.mode === "connect");
         b.classList.toggle("sm", b.dataset.mode === "simulate");
     });
+    const sp = document.getElementById("simPanel");
+    if (sp) sp.classList.toggle("show", m === "simulate");
     updateAllNodes(); setHint();
+}
+
+function buildServiceSelector() {
+    const sel = document.getElementById("simSvc");
+    if (!sel) return;
+    sel.innerHTML = Object.entries(SERVICES).map(([k, s]) =>
+        `<option value="${k}">${s.label}</option>`).join("");
+    sel.value = currentService;
+    const refreshBadge = () => {
+        const svc = SERVICES[currentService];
+        const portTxt = svc.kind === "ping" ? "icmp" : `${svc.proto}/${svc.port}`;
+        document.getElementById("simPort").textContent = portTxt;
+        setHint();
+    };
+    refreshBadge();
+    sel.addEventListener("change", e => { currentService = e.target.value; refreshBadge(); });
 }
 document.querySelectorAll("#modes .tbtn").forEach(b => {
     b.onclick = () => setMode(b.dataset.mode);
@@ -711,7 +910,15 @@ function setHint() {
     if (simRunning) t = "Simulando tráfico de red…";
     else if (mode === "select") t = "Modo selección — arrastra dispositivos, haz clic para ver propiedades.";
     else if (mode === "connect") t = pendingConnect ? "Selecciona el segundo dispositivo para conectar." : "Modo conexión — haz clic en dos dispositivos para unirlos.";
-    else t = pendingSim ? "Selecciona el dispositivo destino del paquete." : "Modo simulación — haz clic en origen y destino.";
+    else {
+        const svc = SERVICES[currentService];
+        const lbl = svc ? svc.label : "Ping";
+        if (svc && svc.kind === "dhcp") {
+            t = pendingSim ? "DHCP request: cualquier destino se ignora — buscando servidor DHCP…" : `DHCP — haz clic en el dispositivo que solicita IP.`;
+        } else {
+            t = pendingSim ? `${lbl} — selecciona el destino.` : `${lbl} — haz clic en origen y destino.`;
+        }
+    }
     hintText.textContent = t;
 }
 
@@ -862,12 +1069,15 @@ function findPath(s, t) {
    Para cada hop entrante a un firewall, la zona de origen es la del enlace de llegada;
    la zona de destino se determina por el siguiente enlace que sale del firewall.
    Si el firewall es el destino final, no se evalúa. */
-function evalFirewall(path) {
+function evalFirewall(path, traffic) {
+    /* traffic: { port:number|"any", proto:"tcp"|"udp"|"icmp"|"any" } */
+    const tPort = traffic && traffic.port != null ? String(traffic.port) : "any";
+    const tProto = traffic && traffic.proto ? traffic.proto : "any";
     for (let i = 1; i < path.length - 1; i++) {
         const dev = byId(path[i].id);
         if (!dev || dev.type !== "firewall") continue;
-        const inLink = path[i].via;        // enlace por el que entra
-        const outLink = path[i + 1].via;   // enlace por el que sale
+        const inLink = path[i].via;
+        const outLink = path[i + 1].via;
         if (!inLink || !outLink) continue;
         const srcZone = zoneOnFw(inLink, dev.id) || "any";
         const dstZone = zoneOnFw(outLink, dev.id) || "any";
@@ -877,22 +1087,16 @@ function evalFirewall(path) {
             const ru = rules[r];
             const sm = ru.src === "any" || ru.src === srcZone;
             const dm = ru.dst === "any" || ru.dst === dstZone;
-            if (sm && dm) { matched = { rule: ru, idx: r + 1 }; break; }
+            const pm = !ru.port || ru.port === "any" || String(ru.port) === tPort;
+            const ptm = !ru.proto || ru.proto === "any" || ru.proto === tProto;
+            if (sm && dm && pm && ptm) { matched = { rule: ru, idx: r + 1 }; break; }
         }
+        const tag = `${srcZone}→${dstZone} ${tProto}/${tPort}`;
         if (matched && matched.rule.action === "deny") {
-            return {
-                ok: false,
-                reason: `Firewall ${dev.name} regla #${matched.idx} deny: ${srcZone} → ${dstZone}`,
-                atIndex: i
-            };
+            return { ok: false, reason: `Firewall ${dev.name} regla #${matched.idx} deny: ${tag}`, atIndex: i };
         }
-        if (!matched && (rules.length > 0)) {
-            /* política implícita: con reglas pero sin match, denegar. */
-            return {
-                ok: false,
-                reason: `Firewall ${dev.name}: sin regla para ${srcZone} → ${dstZone} (deny implícito)`,
-                atIndex: i
-            };
+        if (!matched && rules.length > 0) {
+            return { ok: false, reason: `Firewall ${dev.name}: sin regla para ${tag} (deny implícito)`, atIndex: i };
         }
     }
     return { ok: true };
@@ -947,10 +1151,13 @@ function tween(dur, onUpdate) {
         requestAnimationFrame(f);
     });
 }
-function animatePacket(a, b, kind) {
+function animatePacket(a, b, kind, dir) {
     const ep = endpoints(a, b);
     const pk = svgEl("circle");
-    pk.setAttribute("class", "packet" + (kind === "wireless" ? " wl" : ""));
+    let cls = "packet";
+    if (kind === "wireless") cls += " wl";
+    if (dir === "resp") cls = "packet resp";
+    pk.setAttribute("class", cls);
     pk.setAttribute("r", "6");
     packetLayer.appendChild(pk);
     const dur = Math.max(360, dist(a, b) * 1.5);
@@ -967,6 +1174,38 @@ async function runSimulation(src, dst) {
     if (simRunning) return;
     clearActive();
 
+    const svcKey = currentService;
+    const svc = SERVICES[svcKey] || SERVICES.ping;
+
+    /* DHCP: siempre autodescubrir un servidor DHCP alcanzable distinto del cliente. */
+    if (svc.kind === "dhcp") {
+        const auto = autoDiscover(src.id, d => d && d.id !== src.id && isDhcpServer(d));
+        if (!auto) {
+            log("DHCP — sin servidores DHCP alcanzables desde " + src.name, "error");
+            toast("Sin servidor DHCP alcanzable", "error");
+            return;
+        }
+        dst = auto;
+        log(`DHCP — usando ${dst.name} como servidor (autodescubierto).`, "muted");
+    }
+
+    /* DNS: si el destino no es DNS, usar el primer DNS configurado en src. */
+    if (svc.kind === "dns" && !isDnsServer(dst)) {
+        const dnsIp = (src.dns || [])[0];
+        if (dnsIp) {
+            const auto = deviceByIp(dnsIp);
+            if (auto && isDnsServer(auto)) {
+                dst = auto;
+                log(`DNS — consultando a ${dst.name} (${dnsIp}, configurado en ${src.name}).`, "muted");
+            }
+        }
+        if (!isDnsServer(dst)) {
+            log(`DNS — ${dst.name} no provee servicio DNS y ${src.name} no tiene DNS válido configurado.`, "error");
+            toast("Sin servidor DNS resolvible", "error");
+            return;
+        }
+    }
+
     if (src.id === dst.id) {
         log("Origen y destino son el mismo dispositivo.", "error");
         toast("Selecciona dos dispositivos distintos", "error"); return;
@@ -977,15 +1216,24 @@ async function runSimulation(src, dst) {
         toast(off.name + " está apagado", "error"); return;
     }
 
-    /* 1) Pre-flight de gateway/subred. */
-    const gw = evalGateway(src, dst);
-    if (!gw.ok) {
-        log("PAQUETE PERDIDO — " + gw.reason, "error");
-        toast(gw.reason, "error");
+    /* 1) Pre-flight gateway/subred — DHCP no requiere IP previa. */
+    if (svc.kind !== "dhcp") {
+        const gw = evalGateway(src, dst);
+        if (!gw.ok) {
+            log("PAQUETE PERDIDO — " + gw.reason, "error");
+            toast(gw.reason, "error"); return;
+        }
+    }
+
+    /* 2) Servicio disponible en destino. */
+    const svcAvail = serviceAvailableAt(dst, svcKey);
+    if (!svcAvail.ok) {
+        log("PAQUETE PERDIDO — " + svcAvail.reason, "error");
+        toast(svcAvail.reason, "error");
         return;
     }
 
-    /* 2) Path con feasibility (enlaces caídos, WiFi auth, VLAN). */
+    /* 3) Path con feasibility. */
     const pf = findPath(src.id, dst.id);
     if (!pf.ok) {
         const reason = diagnoseNoPath(src, dst);
@@ -995,13 +1243,15 @@ async function runSimulation(src, dst) {
     }
     const path = pf.path;
 
-    /* 3) Reglas de firewall sobre el path. */
-    const fw = evalFirewall(path);
-    /* Si hay denegación, animaremos hasta el firewall y ahí caemos. */
+    /* 4) Firewall con port/proto. */
+    const traffic = { port: svc.port || "any", proto: svc.proto || "any" };
+    const fw = evalFirewall(path, traffic);
 
     simRunning = true; setHint();
-    log(`Enviando paquete: ${src.name} → ${dst.name} (${path.length - 1} saltos)`, "info");
+    const portTxt = svc.kind === "ping" ? "ICMP" : `${svc.proto.toUpperCase()}/${svc.port}`;
+    log(`▶ ${svc.label} ${src.name} → ${dst.name} (${path.length - 1} saltos, ${portTxt})`, "info");
 
+    /* === FORWARD === */
     let totalLat = 0;
     for (let i = 0; i < path.length - 1; i++) {
         const a = byId(path[i].id);
@@ -1010,25 +1260,21 @@ async function runSimulation(src, dst) {
         const el = document.querySelector('[data-linkv="' + link.id + '"]');
         if (el) el.classList.add("active");
 
-        /* Si el firewall en el siguiente nodo deniega, animamos hasta él y cortamos. */
         const blockHere = (!fw.ok && fw.atIndex === i + 1);
-
         const lat = hopLatencyMs(link, a.id, b.id);
         const { drop, lossPct } = hopDrops(link, a.id, b.id);
         totalLat += lat;
-
         const tag = link.kind === "wireless" ? "WiFi" : "cable";
         const detail = `[${tag}, ${lat.toFixed(1)} ms` + (lossPct > 0.5 ? `, ~${lossPct.toFixed(1)}% loss` : "") + "]";
-        log(`  ${a.name} → ${b.name}  ${detail}`, drop || blockHere ? "warn" : "muted");
+        log(`  → ${a.name} → ${b.name}  ${detail}`, drop || blockHere ? "warn" : "muted");
 
-        await animatePacket(a, b, link.kind);
+        await animatePacket(a, b, link.kind, "fwd");
 
         if (blockHere) {
             simRunning = false; setHint();
             log("BLOQUEADO POR FIREWALL — " + fw.reason, "error");
             toast(fw.reason, "error");
-            setTimeout(clearActive, 900);
-            return;
+            setTimeout(clearActive, 900); return;
         }
         if (drop) {
             simRunning = false; setHint();
@@ -1037,14 +1283,97 @@ async function runSimulation(src, dst) {
                 : `Paquete perdido en ${a.name}→${b.name} (${lossPct.toFixed(1)}% pérdida)`;
             log("PAQUETE PERDIDO — " + why, "error");
             toast(why, "error");
-            setTimeout(clearActive, 900);
-            return;
+            setTimeout(clearActive, 900); return;
         }
     }
+
+    /* Servicio respondiendo en destino: aplicar acción del servicio. */
+    const svcResp = await runServiceAtDest(svc, src, dst);
+    if (!svcResp.ok) {
+        simRunning = false; setHint();
+        log("RESPUESTA NEGATIVA — " + svcResp.reason, "error");
+        toast(svcResp.reason, "error");
+        setTimeout(clearActive, 900); return;
+    }
+    if (svcResp.note) log("  ✓ " + svcResp.note, "success");
+
+    /* === RESPONSE === (animación de regreso, nuevo dado de pérdida por hop) */
+    for (let i = path.length - 1; i > 0; i--) {
+        const a = byId(path[i].id);
+        const b = byId(path[i - 1].id);
+        const link = path[i].via;
+        const lat = hopLatencyMs(link, a.id, b.id);
+        const { drop, lossPct } = hopDrops(link, a.id, b.id);
+        totalLat += lat;
+        log(`  ← ${a.name} → ${b.name}  [${link.kind === "wireless" ? "WiFi" : "cable"}, ${lat.toFixed(1)} ms${lossPct > 0.5 ? `, ~${lossPct.toFixed(1)}% loss` : ""}]`, drop ? "warn" : "muted");
+        await animatePacket(a, b, link.kind, "resp");
+        if (drop) {
+            simRunning = false; setHint();
+            log(`PAQUETE PERDIDO en respuesta — ${a.name}→${b.name} (${lossPct.toFixed(1)}% pérdida)`, "error");
+            toast("Respuesta perdida en el camino", "error");
+            setTimeout(clearActive, 900); return;
+        }
+    }
+
     simRunning = false; setHint();
-    log(`PAQUETE ENTREGADO — ${path.length - 1} saltos, latencia total ~${totalLat.toFixed(1)} ms.`, "success");
-    toast("Paquete entregado correctamente", "success");
+    log(`✓ ${svc.label.toUpperCase()} OK — RTT ~${totalLat.toFixed(1)} ms, ${path.length - 1} saltos.`, "success");
+    if (svcResp.note) toast(svcResp.note, "success");
+    else toast(`${svc.label} entregado`, "success");
     setTimeout(clearActive, 900);
+}
+
+/* BFS desde un origen hasta el primer dispositivo que cumpla `predicate`. */
+function autoDiscover(srcId, predicate) {
+    const src = byId(srcId);
+    if (!src) return null;
+    const visited = new Set([srcId + "|"]);
+    const q = [{ node: srcId, ctx: "" }];
+    while (q.length) {
+        const cur = q.shift();
+        const dev = byId(cur.node);
+        if (dev !== src && predicate(dev)) return dev;
+        for (const l of links) {
+            if (edgeBlock(l)) continue;
+            const o = l.from === cur.node ? l.to : (l.to === cur.node ? l.from : null);
+            if (!o) continue;
+            const od = byId(o); if (!od) continue;
+            const k = o + "|";
+            if (visited.has(k)) continue;
+            visited.add(k);
+            q.push({ node: o, ctx: "" });
+        }
+    }
+    return null;
+}
+
+/* Acción del servicio en el destino. Devuelve { ok, reason?, note? }. */
+async function runServiceAtDest(svc, src, dst) {
+    if (svc.kind === "ping") {
+        return { ok: true, note: `${dst.name} responde al ping` };
+    }
+    if (svc.kind === "dhcp") {
+        const lease = dhcpAllocate(dst, src.mac);
+        if (!lease) return { ok: false, reason: `${dst.name} no pudo asignar IP (rango agotado o mal configurado)` };
+        src.ip = lease.ip;
+        if (lease.mask) src.mask = lease.mask;
+        if (lease.gateway) src.gateway = lease.gateway;
+        if (lease.dns && lease.dns.length) src.dns = [...lease.dns];
+        src.ipMode = "dhcp";
+        updateNode(src);
+        if (selection && selection.kind === "device" && selection.id === src.id) renderInspector();
+        autosave();
+        return { ok: true, note: `${src.name} recibió IP ${lease.ip} de ${dst.name} (gw ${lease.gateway})` };
+    }
+    if (svc.kind === "dns") {
+        /* Resolvemos un hostname conocido para "demostrar". Por defecto: hostname del primer servidor distinto al DNS. */
+        const target = devices.find(d => d.id !== src.id && d.id !== dst.id && d.type === "server" && d.hostname) || devices.find(d => d.hostname && d.id !== src.id);
+        const q = target ? target.hostname : "ejemplo.local";
+        const ip = dnsResolve(dst, q);
+        if (!ip) return { ok: false, reason: `${dst.name} no pudo resolver "${q}"` };
+        return { ok: true, note: `DNS: "${q}" → ${ip}` };
+    }
+    /* Servicios estándar TCP/UDP: ya validamos que está activo en destino. */
+    return { ok: true, note: `${dst.name} respondió en ${svc.proto}/${svc.port}` };
 }
 
 /* Cuando no hay path, intenta dar una explicación útil revisando los enlaces incidentes
@@ -1890,6 +2219,7 @@ function loadState(data, quiet) {
     devices = []; links = []; wifiLayer.innerHTML = ""; linkLayer.innerHTML = "";
     selection = null; pendingConnect = null; pendingSim = null;
     for (const k in nameCount) delete nameCount[k];
+    for (const k in dhcpAssignments) delete dhcpAssignments[k];
     let maxN = 0;
     (data.devices || []).forEach(d => {
         const def = defaultsFor(d.type);
@@ -1959,6 +2289,7 @@ $("#btnClear").onclick = () => {
     devices = []; links = []; wifiLayer.innerHTML = ""; linkLayer.innerHTML = "";
     selection = null; pendingConnect = null; pendingSim = null;
     for (const k in nameCount) delete nameCount[k];
+    for (const k in dhcpAssignments) delete dhcpAssignments[k];
     idSeq = 1; ipSeq = 10;
     refreshGeom(); renderInspector(); updateEmpty();
     log("Lienzo limpiado", "warn"); autosave();
@@ -2088,6 +2419,7 @@ function updateEmpty() { emptyMsg.style.display = devices.length ? "none" : "blo
 /* ============================ INIT ============================ */
 function init() {
     buildPalette();
+    buildServiceSelector();
     applyView();
     setHint();
     renderInspector();
