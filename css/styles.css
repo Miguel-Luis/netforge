@@ -1931,17 +1931,15 @@ input[type=range]::-webkit-slider-thumb {
         display: none;
     }
 
-    /* Al pulsar el icono del header, la consola ocupa la mitad inferior */
+    /* Al pulsar el icono del header, la consola ocupa toda la pantalla */
     #console.expanded {
         position: fixed;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        top: auto;
-        height: 50vh;
+        inset: 0;
+        height: 100vh;
+        height: 100dvh;
         z-index: 60;
-        border-top: 1px solid var(--border2);
-        border-radius: 16px 16px 0 0;
+        border: none;
+        border-radius: 0;
         box-shadow: 0 -12px 44px rgba(0, 0, 0, .6);
         animation: sheetUp .26s cubic-bezier(.4, 0, .2, 1);
     }
@@ -2066,14 +2064,6 @@ input[type=range]::-webkit-slider-thumb {
     }
 }
 
-/* ---- Pantallas muy bajas (móvil en horizontal) ---- */
-@media (max-height: 440px) and (max-width: 920px) {
-
-    /* Con tan poco alto, dejamos que la consola ocupe más para ser usable */
-    #console.expanded {
-        height: 80vh;
-    }
-}
 
 /* ---- Dispositivos táctiles: engrosar zonas de toque del lienzo ---- */
 @media (hover: none) and (pointer: coarse) {
