@@ -72,9 +72,11 @@ NF.inspector = (function () {
             const cls = "tab-body" + (k === cur ? "" : " hidden");
             body += `<div class="${cls}" data-tb="${k}">${NF.tabs.render(d, k)}</div>`;
         }
+        const conns = NF.state.links.filter(l => l.from === d.id || l.to === d.id);
+        const connSec = connections(d, conns);
         const footer = `<div class="section-divider"></div>
           <button class="del-btn" id="fDel">Eliminar dispositivo</button>`;
-        insp.innerHTML = head + tabBar + body + footer;
+        insp.innerHTML = head + tabBar + body + connSec + footer;
 
         NF.iconsfx.paintCanvas(NF.dom.$("#iCv"), d.type, 28);
         insp.querySelectorAll(".tab").forEach(b => {
@@ -85,8 +87,63 @@ NF.inspector = (function () {
             };
         });
         NF.tabs.bind(d);
+        bindConnections();
         const del = NF.dom.$("#fDel");
         if (del) del.addEventListener("click", () => NF.devices.remove(d.id));
+    }
+
+    /* === Apartado de conexiones del dispositivo === */
+    function connections(d, conns) {
+        const esc = NF.dom.esc;
+        const TYPES = NF.config.TYPES;
+        if (!conns.length) return "";
+
+        const rows = conns.map(l => {
+            const otherId = l.from === d.id ? l.to : l.from;
+            const o = NF.devices.byId(otherId);
+            const name = o ? esc(o.name) : "Desconocido";
+            const color = o ? (TYPES[o.type] ? TYPES[o.type].color : "#64748b") : "#64748b";
+            const typeLabel = o && TYPES[o.type] ? TYPES[o.type].label : "—";
+            const wireless = l.kind === "wireless";
+            const oor = wireless && !NF.links.wirelessOk(l);
+            const down = l.status !== "up";
+            let badge;
+            if (down) badge = `<span class="badge warn">Caído</span>`;
+            else if (oor) badge = `<span class="badge warn">Fuera de rango</span>`;
+            else badge = `<span class="badge ok">Activo</span>`;
+            const kindIco = wireless
+                ? `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></svg>`
+                : `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M7.7 16.3l8.6-8.6"/></svg>`;
+            return `
+              <div class="conn-item">
+                <span class="conn-dot" style="background:${color}"></span>
+                <div class="conn-info">
+                  <div class="conn-name">${name}</div>
+                  <div class="conn-meta"><span class="conn-kind">${kindIco}${wireless ? "WiFi" : "Cable"}</span> · ${typeLabel} ${badge}</div>
+                </div>
+                <button class="conn-del" data-link="${l.id}" title="Eliminar conexión" aria-label="Eliminar conexión">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                </button>
+              </div>`;
+        }).join("");
+
+        return `<div class="section-divider"></div>
+          <div class="conn-section">
+            <div class="conn-head"><h4>Conexiones</h4><span class="conn-count">${conns.length}</span></div>
+            <div class="conn-list">${rows}</div>
+          </div>`;
+    }
+
+    function bindConnections() {
+        const insp = NF.dom.refs().inspector;
+        insp.querySelectorAll(".conn-del").forEach(btn => {
+            btn.addEventListener("click", () => {
+                /* remove() emite "selection:changed"; como seguimos con el
+                   mismo dispositivo seleccionado, el inspector se redibuja
+                   solo y la conexión desaparece de la lista. */
+                NF.links.remove(btn.dataset.link);
+            });
+        });
     }
 
     function link(l) {

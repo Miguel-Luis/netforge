@@ -1508,6 +1508,118 @@ input[type=range]::-webkit-slider-thumb {
     margin: 12px 0;
 }
 
+/* === Apartado de conexiones del dispositivo === */
+.conn-section {
+    margin-top: 2px;
+}
+
+.conn-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.conn-head h4 {
+    font-size: 12px;
+    letter-spacing: .4px;
+    color: var(--text);
+    margin: 0;
+}
+
+.conn-count {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--accent);
+    background: rgba(34, 211, 238, .12);
+    border: 1px solid rgba(34, 211, 238, .35);
+    border-radius: 999px;
+    padding: 1px 8px;
+    line-height: 1.5;
+}
+
+.conn-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.conn-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    background: var(--panel2, rgba(255, 255, 255, .03));
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    transition: border-color .15s, background .15s;
+}
+
+.conn-item:hover {
+    border-color: rgba(34, 211, 238, .4);
+}
+
+.conn-dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, .04);
+}
+
+.conn-info {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.conn-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.conn-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+}
+
+.conn-kind {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.conn-del {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color .15s, background .15s, border-color .15s;
+}
+
+.conn-del:hover {
+    color: var(--danger, #f87171);
+    border-color: rgba(248, 113, 113, .5);
+    background: rgba(248, 113, 113, .1);
+}
+
 
 
 .empty-insp h3 {
