@@ -179,6 +179,25 @@ NF.devices = (function () {
         return dev;
     }
 
+    /* Devuelve una posición libre cerca de (x,y) para no apilar nodos.
+       Si el punto está ocupado, busca en espiral hacia afuera. */
+    function findFreeSpot(x, y) {
+        const MIN = 78; /* separación mínima entre centros (nodo ≈ 62px) */
+        const devs = NF.state.devices;
+        const free = (px, py) => devs.every(d => Math.hypot(d.x - px, d.y - py) >= MIN);
+        if (free(x, y)) return { x: Math.round(x), y: Math.round(y) };
+        const step = 42;
+        for (let ring = 1; ring <= 24; ring++) {
+            for (let a = 0; a < 360; a += 30) {
+                const rad = a * Math.PI / 180;
+                const px = x + Math.cos(rad) * ring * step;
+                const py = y + Math.sin(rad) * ring * step;
+                if (free(px, py)) return { x: Math.round(px), y: Math.round(py) };
+            }
+        }
+        return { x: Math.round(x), y: Math.round(y) };
+    }
+
     /* Reconstruye un Device desde JSON cargado con backfill de defaults. */
     function fromSerialized(raw) {
         const def = defaultsFor(raw.type);
@@ -301,7 +320,7 @@ NF.devices = (function () {
     return {
         byId, nextName, nextIp,
         makeSwitchPorts, defaultsFor,
-        add, fromSerialized, remove,
+        add, findFreeSpot, fromSerialized, remove,
         update, move,
         defaultEmbeddedAp, installEmbeddedAp, mergeApIntoRouter, uninstallEmbeddedAp
     };

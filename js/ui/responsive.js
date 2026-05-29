@@ -124,14 +124,10 @@ NF.responsive = (function () {
         if (mql.addEventListener) mql.addEventListener("change", onBreakpointChange);
         else if (mql.addListener) mql.addListener(onBreakpointChange); /* Safari antiguo */
 
-        /* En móvil, al seleccionar un elemento mostramos sus propiedades;
-           al deseleccionar, recogemos el inspector. */
-        NF.bus.on("selection:changed", () => {
-            if (!isMobile()) return;
-            const sel = NF.state.selection;
-            if (sel) open("right");
-            else if (inspector && inspector.classList.contains("open")) close();
-        });
+        /* Nota: NO abrimos el inspector automáticamente al seleccionar. Si lo
+           hiciéramos, el backdrop cubriría el lienzo e impediría arrastrar o
+           recolocar los dispositivos. El usuario abre las propiedades cuando
+           quiere con el botón "Propiedades". */
     }
 
     return { init, open, openConsole, close, toggle, isMobile };

@@ -41,6 +41,15 @@ NF.palette = (function () {
             dropTargetEl = null; dropTargetDev = null;
         }
 
+        /* Limpieza común: quita listeners, ghost y resaltados. Idempotente. */
+        function teardown() {
+            window.removeEventListener("pointermove", mv);
+            window.removeEventListener("pointerup", up);
+            window.removeEventListener("pointercancel", cancel);
+            if (ghost) { ghost.remove(); ghost = null; }
+            clearDropTarget();
+        }
+
         function mv(ev) {
             if (Math.hypot(ev.clientX - start.x, ev.clientY - start.y) > 6) moved = true;
             if (!moved) return;
@@ -62,14 +71,20 @@ NF.palette = (function () {
                 clearDropTarget();
             }
         }
+
+        /* En táctil, si el navegador interpreta el gesto como scroll de la
+           paleta, emite pointercancel: hay que limpiar el ghost y abortar
+           sin crear ningún dispositivo (evita "fantasmas" superpuestos). */
+        function cancel() {
+            teardown();
+        }
+
         function up(ev) {
-            window.removeEventListener("pointermove", mv);
-            window.removeEventListener("pointerup", up);
-            ghost.remove(); ghost = null;
             const router = dropTargetDev;
-            clearDropTarget();
+            const mobile = NF.responsive && NF.responsive.isMobile && NF.responsive.isMobile();
             const refs = NF.dom.refs();
             const r = refs.stage.getBoundingClientRect();
+            teardown();
 
             /* Si soltamos un AP sobre un router sin AP integrado, lo instalamos. */
             if (moved && canEmbed && router) {
@@ -78,6 +93,7 @@ NF.palette = (function () {
                 NF.state.selection = { kind: "device", id: router.id };
                 NF.bus.emit("selection:changed");
                 NF.render.refresh();
+                if (mobile) NF.responsive.close();
                 return;
             }
 
@@ -88,13 +104,20 @@ NF.palette = (function () {
                 wx = w.x; wy = w.y;
             } else if (!moved) {
                 const w = NF.geo.toWorld(r.left + r.width / 2, r.top + r.height / 2);
-                wx = w.x + (Math.random() * 120 - 60);
-                wy = w.y + (Math.random() * 120 - 60);
+                wx = w.x; wy = w.y;
             } else return;
-            NF.devices.add(type, wx, wy, true);
+
+            /* Busca un hueco libre cercano para no apilar dispositivos. */
+            const spot = NF.devices.findFreeSpot(wx, wy);
+            NF.devices.add(type, spot.x, spot.y, true);
+
+            /* En móvil cerramos la paleta para que el dispositivo recién
+               colocado quede visible y se pueda arrastrar de inmediato. */
+            if (mobile) NF.responsive.close();
         }
         window.addEventListener("pointermove", mv);
         window.addEventListener("pointerup", up);
+        window.addEventListener("pointercancel", cancel);
     }
 
     function build() {
