@@ -275,6 +275,38 @@ body.is-resizing * {
     cursor: inherit !important;
 }
 
+/* ---------- Responsive helpers ---------- */
+.mobile-only {
+    display: none;
+}
+
+.drawer-toggle {
+    flex-shrink: 0;
+    padding: 8px;
+}
+
+.drawer-toggle.active {
+    color: var(--accent);
+    border-color: rgba(34, 211, 238, .4);
+    background: rgba(34, 211, 238, .1);
+}
+
+#backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(4, 8, 18, .55);
+    backdrop-filter: blur(2px);
+    z-index: 35;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s ease;
+}
+
+#backdrop.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
 /* ---------- Palette ---------- */
 #palette {
     width: 210px;
@@ -353,6 +385,8 @@ body.is-resizing * {
     flex: 1;
     position: relative;
     overflow: hidden;
+    min-width: 0;
+    touch-action: none;
     background:
         radial-gradient(1100px 700px at 78% -10%, rgba(59, 130, 246, .10), transparent),
         radial-gradient(900px 600px at 12% 115%, rgba(168, 85, 247, .10), transparent),
@@ -1714,4 +1748,303 @@ input[type=range]::-webkit-slider-thumb {
 .ghost canvas {
     width: 38px;
     height: 38px
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+/* ---- Laptops pequeños / tablets en horizontal ---- */
+@media (max-width: 1100px) {
+    header {
+        gap: 12px;
+        padding: 0 12px;
+    }
+
+    .brand {
+        padding-right: 8px;
+    }
+
+    .tbtn {
+        padding: 8px 10px;
+        font-size: 12px;
+    }
+
+    .abtn {
+        padding: 8px 10px;
+        font-size: 11.5px;
+    }
+
+    #palette {
+        width: 184px;
+    }
+
+    #inspector {
+        width: 250px;
+    }
+}
+
+/* ---- Tablets en horizontal: compactar etiquetas de acciones ---- */
+@media (max-width: 920px) {
+
+    /* Solo iconos en los botones de acción para ahorrar espacio */
+    .actions .abtn {
+        font-size: 0;
+        gap: 0;
+        padding: 9px;
+    }
+
+    .actions .abtn svg {
+        width: 16px;
+        height: 16px;
+    }
+}
+
+/* ============================================================
+   MODO MÓVIL / TABLET VERTICAL  (<= 820px)
+   Paneles laterales convertidos en cajones deslizantes (drawers).
+   ============================================================ */
+@media (max-width: 820px) {
+
+    /* Permitir que la página haga scroll/zoom propio del navegador queda
+       contenido: el lienzo gestiona su propio gesto táctil. */
+    .mobile-only {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* --- Header compacto, en una sola fila con scroll horizontal --- */
+    header {
+        height: 52px;
+        gap: 8px;
+        padding: 0 8px;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: none;
+    }
+
+    header::-webkit-scrollbar {
+        display: none;
+    }
+
+    /* Ocultar el texto de la marca; dejar solo el logo */
+    .brand>div {
+        display: none;
+    }
+
+    .brand {
+        padding-right: 0;
+    }
+
+    /* Grupo de modos: solo iconos */
+    .tgroup {
+        gap: 2px;
+        padding: 3px;
+    }
+
+    .tbtn {
+        font-size: 0;
+        gap: 0;
+        padding: 8px;
+    }
+
+    .tbtn svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    /* Acciones ya son solo-icono desde 920px; afinar separación */
+    .actions {
+        gap: 4px;
+    }
+
+    /* --- Cajones laterales (off-canvas) --- */
+    #main {
+        position: relative;
+    }
+
+    /* El backdrop arranca bajo el header para no tapar los botones de menú */
+    #backdrop {
+        top: 52px;
+    }
+
+    .resizer {
+        display: none !important;
+    }
+
+    #palette,
+    #inspector {
+        position: fixed;
+        top: 52px;
+        bottom: 0;
+        width: min(300px, 84vw) !important;
+        z-index: 40;
+        transition: transform .26s cubic-bezier(.4, 0, .2, 1);
+        box-shadow: 0 0 40px rgba(0, 0, 0, .55);
+    }
+
+    #palette {
+        left: 0;
+        transform: translateX(-102%);
+        border-right: 1px solid var(--border2);
+    }
+
+    #inspector {
+        right: 0;
+        transform: translateX(102%);
+        border-left: 1px solid var(--border2);
+    }
+
+    #palette.open,
+    #inspector.open {
+        transform: translateX(0);
+    }
+
+    /* El lienzo ocupa todo el ancho disponible */
+    #stage {
+        flex: 1;
+        width: 100%;
+    }
+
+    /* --- Consola más baja --- */
+    #console {
+        height: 104px !important;
+    }
+
+    /* --- Overlays del lienzo más pequeños --- */
+    #hint {
+        font-size: 11px;
+        padding: 6px 12px;
+        max-width: 78vw;
+        text-align: center;
+    }
+
+    #simPanel {
+        top: 10px;
+        right: 10px;
+        padding: 5px 8px;
+    }
+
+    #zoom {
+        bottom: 12px;
+        right: 12px;
+    }
+
+    #empty p {
+        font-size: 12px;
+        padding: 0 24px;
+    }
+
+    #toasts {
+        top: 60px;
+        width: 90vw;
+    }
+
+    .toast {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
+/* ============================================================
+   TELÉFONOS  (<= 480px)
+   ============================================================ */
+@media (max-width: 480px) {
+
+    header {
+        height: 50px;
+        gap: 6px;
+    }
+
+    .logo {
+        width: 32px;
+        height: 32px;
+    }
+
+    .logo svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .tbtn {
+        padding: 7px;
+    }
+
+    .tbtn svg,
+    .actions .abtn svg {
+        width: 15px;
+        height: 15px;
+    }
+
+    .actions .abtn {
+        padding: 8px;
+    }
+
+    .drawer-toggle {
+        padding: 7px;
+    }
+
+    .drawer-toggle svg {
+        width: 17px;
+        height: 17px;
+    }
+
+    /* Cajones casi a pantalla completa */
+    #palette,
+    #inspector {
+        top: 50px;
+        width: min(330px, 90vw) !important;
+    }
+
+    #backdrop {
+        top: 50px;
+    }
+
+    #console {
+        height: 88px !important;
+    }
+
+    .con-head {
+        padding: 5px 10px;
+    }
+
+    #log {
+        padding: 5px 10px;
+        font-size: 10.5px;
+    }
+
+    /* Zoom compacto */
+    #zoom button {
+        width: 28px;
+        height: 28px;
+    }
+
+    #zlabel {
+        width: 34px;
+        font-size: 10px;
+    }
+}
+
+/* ---- Pantallas muy bajas (móvil en horizontal): ocultar consola ---- */
+@media (max-height: 440px) and (max-width: 920px) {
+    #console {
+        height: 0 !important;
+        overflow: hidden;
+        border: none;
+    }
+}
+
+/* ---- Dispositivos táctiles: engrosar zonas de toque del lienzo ---- */
+@media (hover: none) and (pointer: coarse) {
+
+    #zoom button {
+        width: 34px;
+        height: 34px;
+    }
+
+    .pal-item {
+        padding: 10px 9px;
+    }
 }

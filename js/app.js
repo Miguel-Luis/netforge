@@ -26,6 +26,7 @@ window.NF = window.NF || {};
         NF.modes.init();          // wires #modes buttons + builds service selector
         NF.canvas.init();         // wires stage events
         NF.resizers.init();       // restaura y cablea divisores arrastrables
+        NF.responsive.init();     // cajones laterales en pantallas pequeñas
         NF.render.applyView();
         NF.modes.setHint();
         NF.inspector.render();
