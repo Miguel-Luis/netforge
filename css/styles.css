@@ -68,7 +68,10 @@ button {
 #app {
     display: flex;
     flex-direction: column;
-    height: 100vh
+    height: 100vh;
+    /* dvh = altura real del viewport en móvil (descuenta la barra del
+       navegador), evita que la parte inferior quede fuera de la vista. */
+    height: 100dvh;
 }
 
 /* ---------- Header ---------- */
@@ -1969,7 +1972,7 @@ input[type=range]::-webkit-slider-thumb {
     }
 
     #zoom {
-        bottom: 12px;
+        bottom: calc(58px + env(safe-area-inset-bottom));
         right: 12px;
     }
 
