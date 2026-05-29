@@ -1633,12 +1633,6 @@ input[type=range]::-webkit-slider-thumb {
     color: var(--text);
 }
 
-/* El botón "abrir" (chevron) se alinea a la derecha cuando es el único
-   control visible (estado colapsado en móvil). */
-#conExpand {
-    margin-left: auto;
-}
-
 #log {
     flex: 1;
     overflow-y: auto;
@@ -1932,36 +1926,19 @@ input[type=range]::-webkit-slider-thumb {
         width: 100%;
     }
 
-    /* --- Consola colapsada: solo la barra de título abajo --- */
-    #console {
-        height: auto !important;
-        flex-shrink: 0;
-    }
-
-    .con-head {
-        cursor: pointer;
-        user-select: none;
-    }
-
-    /* En estado colapsado se oculta el log y los controles de "abierto" */
-    #console:not(.expanded) #log,
-    #console:not(.expanded) .con-clear,
-    #console:not(.expanded) #conClose {
+    /* --- Consola oculta abajo: se controla con el icono del header --- */
+    #console:not(.expanded) {
         display: none;
     }
 
-    #console:not(.expanded) .con-head {
-        border-bottom: none;
-    }
-
-    /* Al tocar la barra, la consola se despliega como hoja inferior (modal) */
+    /* Al pulsar el icono del header, la consola ocupa la mitad inferior */
     #console.expanded {
         position: fixed;
         left: 0;
         right: 0;
         bottom: 0;
         top: auto;
-        height: min(60vh, 420px);
+        height: 50vh;
         z-index: 60;
         border-top: 1px solid var(--border2);
         border-radius: 16px 16px 0 0;
@@ -1971,10 +1948,6 @@ input[type=range]::-webkit-slider-thumb {
 
     #console.expanded #log {
         display: block;
-    }
-
-    #console.expanded #conExpand {
-        display: none;
     }
 
     @keyframes sheetUp {
@@ -2081,11 +2054,6 @@ input[type=range]::-webkit-slider-thumb {
         font-size: 10.5px;
     }
 
-    /* En teléfonos la hoja ocupa algo más de alto */
-    #console.expanded {
-        height: min(66vh, 460px);
-    }
-
     /* Zoom compacto */
     #zoom button {
         width: 28px;
@@ -2101,9 +2069,9 @@ input[type=range]::-webkit-slider-thumb {
 /* ---- Pantallas muy bajas (móvil en horizontal) ---- */
 @media (max-height: 440px) and (max-width: 920px) {
 
-    /* La barra de consola permanece (colapsada); al abrirse ocupa casi todo */
+    /* Con tan poco alto, dejamos que la consola ocupe más para ser usable */
     #console.expanded {
-        height: 82vh;
+        height: 80vh;
     }
 }
 

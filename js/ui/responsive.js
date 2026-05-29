@@ -7,9 +7,8 @@
  *
  *   - #btnPanelLeft  abre/cierra la paleta de dispositivos (izquierda)
  *   - #btnPanelRight abre/cierra el inspector de propiedades (derecha)
+ *   - #btnConsole    abre/cierra la consola (hoja inferior a media pantalla)
  *   - #backdrop      capa oscura que cierra cualquier overlay al tocarla
- *   - #console       en móvil solo muestra su barra de título; al tocarla se
- *                    despliega como modal (#console.expanded) con su botón X
  *
  * Solo un overlay está abierto a la vez para no tapar todo el lienzo.
  */
@@ -19,8 +18,8 @@ NF.responsive = (function () {
 
     const MQ = "(max-width: 820px)";
     let mql = null;
-    let palette, inspector, backdrop, btnLeft, btnRight;
-    let consoleEl, conHead, conClose;
+    let palette, inspector, backdrop, btnLeft, btnRight, btnConsole;
+    let consoleEl, conClose;
 
     function isMobile() { return mql ? mql.matches : window.matchMedia(MQ).matches; }
 
@@ -29,6 +28,7 @@ NF.responsive = (function () {
     function syncToggles() {
         if (btnLeft) btnLeft.classList.toggle("active", palette && palette.classList.contains("open"));
         if (btnRight) btnRight.classList.toggle("active", inspector && inspector.classList.contains("open"));
+        if (btnConsole) btnConsole.classList.toggle("active", consoleOpen());
     }
 
     function anyOpen() {
@@ -83,6 +83,11 @@ NF.responsive = (function () {
         else open(which);
     }
 
+    function toggleConsole() {
+        if (consoleOpen()) close();
+        else openConsole();
+    }
+
     function onBreakpointChange() {
         /* Al volver a escritorio, garantizamos que no queden overlays activos. */
         if (!isMobile()) close();
@@ -94,21 +99,16 @@ NF.responsive = (function () {
         backdrop = NF.dom.$("#backdrop");
         btnLeft = NF.dom.$("#btnPanelLeft");
         btnRight = NF.dom.$("#btnPanelRight");
+        btnConsole = NF.dom.$("#btnConsole");
         consoleEl = NF.dom.$("#console");
-        conHead = consoleEl ? consoleEl.querySelector(".con-head") : null;
         conClose = NF.dom.$("#conClose");
 
         if (btnLeft) btnLeft.addEventListener("click", () => toggle("left"));
         if (btnRight) btnRight.addEventListener("click", () => toggle("right"));
+        if (btnConsole) btnConsole.addEventListener("click", toggleConsole);
         if (backdrop) backdrop.addEventListener("click", close);
 
-        /* Consola: tocar la barra la despliega (salvo si se tocó un botón
-           de control como Limpiar o Cerrar). */
-        if (conHead) conHead.addEventListener("click", e => {
-            if (!isMobile()) return;
-            if (e.target.closest("#conClose") || e.target.closest(".con-clear")) return;
-            if (!consoleOpen()) openConsole();
-        });
+        /* Botón X dentro de la consola para cerrarla. */
         if (conClose) conClose.addEventListener("click", e => {
             e.stopPropagation();
             close();
@@ -130,5 +130,5 @@ NF.responsive = (function () {
            quiere con el botón "Propiedades". */
     }
 
-    return { init, open, openConsole, close, toggle, isMobile };
+    return { init, open, openConsole, close, toggle, toggleConsole, isMobile };
 })();
