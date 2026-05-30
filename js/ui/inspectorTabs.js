@@ -636,6 +636,13 @@ NF.tabs = NF.tabs || {};
         else if (rb && !ra) { ap = b; r = rb; cli = a; }
         else { NF.links.create(a, b); return; }   /* AP↔AP u otro: sin auth de cliente */
 
+        /* Un AP sin SSID no emite red: no se puede asociar a él. */
+        if (!(r.ssid || "").trim()) {
+            NF.notify.toast(ap.name + " no tiene un SSID configurado.", "error");
+            NF.notify.log("WiFi: " + ap.name + " no puede aceptar clientes porque no tiene un SSID configurado. Asígnale uno en su pestaña WiFi.", "error");
+            return;
+        }
+
         if (!("wifiSsid" in cli)) { NF.links.create(a, b); return; }
 
         const found = { dev: ap, r: r };
