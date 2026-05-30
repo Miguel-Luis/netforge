@@ -36,10 +36,30 @@ NF.ip = (function () {
     }
 
     /* RSSI estimado (dBm) entre device y AP a partir de la distancia.
-       Modelo simple log-distance. */
-    function estRssi(distPx, txPower) {
+       Modelo log-distance calibrado a la escala WiFi real:
+         - Pegado al AP            → ~ -30 dBm (señal excelente).
+         - En el borde de cobertura → ~ -90 dBm (prácticamente sin señal).
+       Más potencia (txPower) ⇒ mayor radio de cobertura ⇒ mejor RSSI a la
+       misma distancia. Si no se pasa rangePx, se deriva de la potencia. */
+    function estRssi(distPx, txPower, rangePx) {
+        const NEAR = -30, EDGE = -90;
         const d = Math.max(1, distPx);
-        return Math.round(txPower - 35 - 22 * Math.log10(d / 10));
+        const R = Math.max(60, rangePx || apRange({ txPower: txPower }));
+        let t = Math.log10(d) / Math.log10(R);   /* 0 junto al AP, 1 en el borde */
+        if (t < 0) t = 0;
+        if (t > 1.5) t = 1.5;                     /* algo más allá del borde */
+        return Math.round(NEAR + (EDGE - NEAR) * t);
+    }
+
+    /* Clasifica un RSSI (dBm) en etiqueta + clase de badge, siguiendo la
+       escala estándar de calidad de señal WiFi. */
+    function rssiQuality(rssi) {
+        if (rssi == null) return { label: "N/A", cls: "" };
+        if (rssi >= -60) return { label: "Excelente", cls: "ok" };
+        if (rssi >= -67) return { label: "Buena", cls: "ok" };
+        if (rssi >= -75) return { label: "Aceptable", cls: "warn" };
+        if (rssi >= -82) return { label: "Débil", cls: "err" };
+        return { label: "Muy débil", cls: "err" };
     }
 
     /* ¿El dispositivo emite WiFi? Tanto un AP suelto como un router con
@@ -67,5 +87,5 @@ NF.ip = (function () {
         return r ? apRange(r) : 0;
     }
 
-    return { ipToInt, intToIp, sameSubnet, genMac, apRange, estRssi, hasWifiRadio, radioConfig, radioRange };
+    return { ipToInt, intToIp, sameSubnet, genMac, apRange, estRssi, rssiQuality, hasWifiRadio, radioConfig, radioRange };
 })();

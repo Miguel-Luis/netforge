@@ -357,6 +357,15 @@ NF.tabs = NF.tabs || {};
             fld("Red de invitados (SSID)", inp("fGuest", r.guestSsid), "Vacío = sin red de invitados.");
     }
 
+    /* dBm → potencia lineal legible (mW o W). */
+    function mwLabel(dbm) {
+        const mw = Math.pow(10, dbm / 10);
+        if (mw >= 1000) return (mw / 1000).toFixed(mw >= 10000 ? 0 : 2) + " W";
+        if (mw >= 100) return Math.round(mw) + " mW";
+        if (mw >= 10) return Math.round(mw) + " mW";
+        return mw.toFixed(1) + " mW";
+    }
+
     function tabApRadio(d, r) {
         r = r || d;
         const px = NF.ip.apRange(r);
@@ -367,10 +376,11 @@ NF.tabs = NF.tabs || {};
             '</div>' +
             '<div class="field"><label>Potencia de transmisión</label>' +
                 '<div class="slider-row">' +
-                    '<input type="range" id="fTx" min="-3" max="30" step="1" value="' + r.txPower + '">' +
+                    '<input type="range" id="fTx" min="0" max="30" step="1" value="' + r.txPower + '">' +
                     '<span class="rng-val" id="txVal">' + r.txPower + ' dBm</span>' +
                 '</div>' +
-                '<div class="hint">Radio efectivo aproximado: <b id="rangeOut">' + px + '</b> px</div>' +
+                '<div class="hint">Potencia ≈ <b id="txMw">' + mwLabel(r.txPower) + '</b> · radio aprox. <b id="rangeOut">' + px + '</b> px</div>' +
+                '<div class="hint">Referencia real: móvil/laptop 10–15 dBm · router doméstico 15–23 dBm · máximo legal ~30 dBm (1 W).</div>' +
             '</div>';
     }
 
@@ -725,6 +735,7 @@ NF.tabs = NF.tabs || {};
             r.txPower = +e.target.value;
             if (d.type === "ap") d.range = NF.ip.apRange(r);
             const tv = $("#txVal"); if (tv) tv.textContent = r.txPower + " dBm";
+            const tm = $("#txMw"); if (tm) tm.textContent = mwLabel(r.txPower);
             const ro = $("#rangeOut"); if (ro) ro.textContent = NF.ip.apRange(r);
             NF.render.refresh();
             NF.devices.update(d);

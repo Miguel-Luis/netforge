@@ -28,9 +28,12 @@ NF.feas = (function () {
         if (link.kind !== "wireless") return { latencyAdd: 0, lossAdd: 0, rssi: null };
         const e = radioEndpoint(link);
         if (!e) return { latencyAdd: 0, lossAdd: 0, rssi: null };
-        const rssi = NF.ip.estRssi(NF.geo.dist(e.ap, e.cli), e.radio.txPower || 18);
-        const latencyAdd = Math.max(0, (-65 - rssi) * 0.5);
-        const lossAdd = Math.max(0, (-65 - rssi) * 1.5);
+        const rssi = NF.ip.estRssi(NF.geo.dist(e.ap, e.cli), e.radio.txPower || 18, NF.ip.apRange(e.radio));
+        /* Por debajo de -67 dBm (mínimo recomendado) la conexión empieza a
+           degradarse: sube la latencia y la pérdida de paquetes. */
+        const deficit = Math.max(0, -67 - rssi);
+        const latencyAdd = deficit * 0.8;
+        const lossAdd = Math.min(95, deficit * 2.2);
         return { latencyAdd, lossAdd, rssi };
     }
 

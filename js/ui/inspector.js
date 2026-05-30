@@ -171,10 +171,11 @@ NF.inspector = (function () {
             let ap = null, radio = null, other = null;
             if (ra) { ap = a; radio = ra; other = b; }
             else if (rb) { ap = b; radio = rb; other = a; }
-            if (ap && other) rssi = NF.ip.estRssi(NF.geo.dist(ap, other), radio.txPower || 18);
+            if (ap && other) rssi = NF.ip.estRssi(NF.geo.dist(ap, other), radio.txPower || 18, NF.ip.apRange(radio));
         }
-        const rssiClass = rssi == null ? "" : (rssi >= -65 ? "ok" : rssi >= -78 ? "warn" : "err");
-        const rssiLabel = rssi == null ? "N/A" : (rssi >= -65 ? "Excelente" : rssi >= -78 ? "Aceptable" : "Pobre");
+        const q = NF.ip.rssiQuality(rssi);
+        const rssiClass = q.cls;
+        const rssiLabel = q.label;
         const esc = NF.dom.esc;
         /* ¿Este par puede ser inalámbrico? Si no, deshabilitamos la opción. */
         const wirelessAllowed = a && b && NF.links.canBeWireless(a, b);
