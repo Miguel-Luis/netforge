@@ -116,11 +116,13 @@ NF.inspector = (function () {
                 : `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M7.7 16.3l8.6-8.6"/></svg>`;
             return `
               <div class="conn-item">
-                <span class="conn-dot" style="background:${color}"></span>
-                <div class="conn-info">
-                  <div class="conn-name">${name}</div>
-                  <div class="conn-meta"><span class="conn-kind">${kindIco}${wireless ? "WiFi" : "Cable"}</span> · ${typeLabel} ${badge}</div>
-                </div>
+                <button class="conn-open" data-link="${l.id}" title="Ver/editar esta conexión">
+                  <span class="conn-dot" style="background:${color}"></span>
+                  <div class="conn-info">
+                    <div class="conn-name">${name}</div>
+                    <div class="conn-meta"><span class="conn-kind">${kindIco}${wireless ? "WiFi" : "Cable"}</span> · ${typeLabel} ${badge}</div>
+                  </div>
+                </button>
                 <button class="conn-del" data-link="${l.id}" title="Eliminar conexión" aria-label="Eliminar conexión">
                   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
                 </button>
@@ -136,8 +138,20 @@ NF.inspector = (function () {
 
     function bindConnections() {
         const insp = NF.dom.refs().inspector;
-        insp.querySelectorAll(".conn-del").forEach(btn => {
+        /* Abrir una conexión: la seleccionamos y el inspector muestra sus
+           detalles (incluido el selector cable/WiFi si los extremos lo
+           permiten). */
+        insp.querySelectorAll(".conn-open").forEach(btn => {
             btn.addEventListener("click", () => {
+                const l = NF.links.byId(btn.dataset.link);
+                if (!l) return;
+                NF.state.selection = { kind: "link", id: l.id };
+                NF.bus.emit("selection:changed");
+            });
+        });
+        insp.querySelectorAll(".conn-del").forEach(btn => {
+            btn.addEventListener("click", e => {
+                e.stopPropagation();
                 /* remove() emite "selection:changed"; como seguimos con el
                    mismo dispositivo seleccionado, el inspector se redibuja
                    solo y la conexión desaparece de la lista. */
