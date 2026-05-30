@@ -136,7 +136,10 @@ NF.nodes = (function () {
                 updateAll();
                 NF.modes.setHint();
             } else {
-                if (S.pendingConnect.id !== d.id) NF.links.create(S.pendingConnect, d);
+                if (S.pendingConnect.id !== d.id) {
+                    if (NF.tabs && NF.tabs.connectWireless) NF.tabs.connectWireless(S.pendingConnect, d);
+                    else NF.links.create(S.pendingConnect, d);
+                }
                 S.pendingConnect = null;
                 NF.dom.refs().rubber.removeAttribute("d");
                 updateAll();

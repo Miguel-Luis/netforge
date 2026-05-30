@@ -496,38 +496,164 @@ NF.tabs = NF.tabs || {};
         return best;
     }
 
-    function connectWifi(d) {
-        const ssid = (d.wifiSsid || "").trim();
-        if (!ssid) {
-            NF.notify.toast("Primero selecciona o escribe una red WiFi.", "error");
-            return;
+    /* ¿El dispositivo ya tiene un enlace inalámbrico con ese radio? */
+    function isLinkedTo(d, dev) {
+        return NF.state.links.some(l => l.kind === "wireless" &&
+            ((l.from === d.id && l.to === dev.id) || (l.to === d.id && l.from === dev.id)));
+    }
+
+    /* Paso final: comprueba filtrado MAC, crea el enlace y vuelve a dejar
+       seleccionado el dispositivo (para seguir en su pestaña WiFi). */
+    function finishConnect(d, found) {
+        if ((found.r.macFilter || []).length > 0 && !found.r.macFilter.includes(d.mac)) {
+            NF.notify.toast("El filtrado MAC de " + found.dev.name + " bloquea a " + d.name + ".", "error");
+            NF.notify.log("WiFi: filtrado MAC bloquea a " + d.name + " en " + found.dev.name, "error");
+        } else {
+            const link = NF.links.create(d, found.dev);
+            if (link) NF.notify.toast(d.name + " conectado a «" + found.r.ssid + "».", "success");
         }
+        NF.state.selection = { kind: "device", id: d.id };
+        NF.bus.emit("selection:changed");
+    }
+
+    /* Acción al pulsar una red de la lista: abierta ⇒ conecta directo;
+       protegida ⇒ pide la contraseña en un modal. */
+    function connectToNetwork(d, ssid) {
+        ssid = (ssid || "").trim();
+        if (!ssid) { NF.notify.toast("Primero selecciona o escribe una red WiFi.", "error"); return; }
         const found = findRadioForSsid(d, ssid);
         if (!found) {
             NF.notify.toast("No se encontró la red «" + ssid + "» al alcance.", "error");
             NF.notify.log("WiFi: " + d.name + " no encuentra la red «" + ssid + "» en su rango", "error");
             return;
         }
-        const r = found.r;
-        if (r.security !== "Abierta" && (d.wifiPassword || "") !== (r.password || "")) {
-            NF.notify.toast("Contraseña incorrecta para «" + ssid + "».", "error");
-            NF.notify.log("WiFi: contraseña incorrecta de " + d.name + " para «" + ssid + "»", "error");
+        if (isLinkedTo(d, found.dev)) {
+            NF.notify.toast(d.name + " ya está conectado a «" + ssid + "».", "info");
             return;
         }
-        if ((r.macFilter || []).length > 0 && !r.macFilter.includes(d.mac)) {
-            NF.notify.toast("El filtrado MAC de " + found.dev.name + " bloquea a " + d.name + ".", "error");
-            NF.notify.log("WiFi: filtrado MAC bloquea a " + d.name + " en " + found.dev.name, "error");
-            return;
+        d.wifiSsid = ssid;
+        if (found.r.security === "Abierta") {
+            d.wifiPassword = "";
+            NF.devices.update(d);
+            finishConnect(d, found);
+        } else {
+            NF.devices.update(d);
+            openPwPrompt(d, found);
         }
-        const link = NF.links.create(d, found.dev);
-        if (link) {
-            NF.notify.toast(d.name + " conectado a «" + ssid + "».", "success");
-        }
-        /* Volvemos a seleccionar el dispositivo para seguir en su pestaña
-           WiFi (create() habría seleccionado el enlace). */
-        NF.state.selection = { kind: "device", id: d.id };
-        NF.bus.emit("selection:changed");
     }
+
+    /* Conectar manual (botón): valida con lo escrito en los campos. Si la
+       red es protegida y no hay contraseña escrita, abre el modal. */
+    function connectWifi(d) {
+        const ssid = (d.wifiSsid || "").trim();
+        if (!ssid) { NF.notify.toast("Primero selecciona o escribe una red WiFi.", "error"); return; }
+        const found = findRadioForSsid(d, ssid);
+        if (!found) {
+            NF.notify.toast("No se encontró la red «" + ssid + "» al alcance.", "error");
+            NF.notify.log("WiFi: " + d.name + " no encuentra la red «" + ssid + "» en su rango", "error");
+            return;
+        }
+        if (isLinkedTo(d, found.dev)) { NF.notify.toast(d.name + " ya está conectado a «" + ssid + "».", "info"); return; }
+        if (found.r.security !== "Abierta") {
+            if (!(d.wifiPassword || "")) { openPwPrompt(d, found); return; }
+            if ((d.wifiPassword || "") !== (found.r.password || "")) {
+                NF.notify.toast("Contraseña incorrecta para «" + ssid + "».", "error");
+                NF.notify.log("WiFi: contraseña incorrecta de " + d.name + " para «" + ssid + "»", "error");
+                return;
+            }
+        } else {
+            d.wifiPassword = "";
+        }
+        finishConnect(d, found);
+    }
+
+    /* Modal para introducir la contraseña de una red protegida. */
+    function closePwPrompt() {
+        const ex = document.querySelector(".wifi-modal-back");
+        if (ex) ex.remove();
+    }
+
+    function openPwPrompt(d, found) {
+        closePwPrompt();
+        const ssid = found.r.ssid;
+        const back = document.createElement("div");
+        back.className = "wifi-modal-back";
+        back.innerHTML =
+            '<div class="wifi-modal" role="dialog" aria-modal="true">' +
+                '<div class="wifi-modal-head">' +
+                    '<span class="wifi-net-ico ok">' + wifiSignalIco('') + '</span>' +
+                    '<div><div class="wifi-modal-title">' + esc(ssid) + '</div>' +
+                    '<div class="wifi-modal-sub">' + esc(found.r.security) + ' · introduce la contraseña</div></div>' +
+                '</div>' +
+                '<input type="password" id="wifiPwInput" class="mono" placeholder="Contraseña de la red" autocomplete="off">' +
+                '<div class="wifi-modal-err" id="wifiPwErr"></div>' +
+                '<div class="wifi-modal-actions">' +
+                    '<button class="btn-ghost" id="wifiPwCancel">Cancelar</button>' +
+                    '<button class="btn-wifi" id="wifiPwOk">Conectar</button>' +
+                '</div>' +
+            '</div>';
+        document.body.appendChild(back);
+        const input = back.querySelector("#wifiPwInput");
+        const errBox = back.querySelector("#wifiPwErr");
+        input.value = d.wifiPassword || "";
+        input.focus();
+        input.select();
+
+        function submit() {
+            const val = input.value;
+            if (val !== (found.r.password || "")) {
+                errBox.textContent = "Contraseña incorrecta. Inténtalo de nuevo.";
+                input.select();
+                NF.notify.log("WiFi: contraseña incorrecta de " + d.name + " para «" + ssid + "»", "error");
+                return;
+            }
+            d.wifiSsid = ssid;
+            d.wifiPassword = val;
+            NF.devices.update(d);
+            closePwPrompt();
+            finishConnect(d, found);
+        }
+        back.querySelector("#wifiPwOk").addEventListener("click", submit);
+        back.querySelector("#wifiPwCancel").addEventListener("click", closePwPrompt);
+        back.addEventListener("mousedown", e => { if (e.target === back) closePwPrompt(); });
+        input.addEventListener("keydown", e => {
+            if (e.key === "Enter") { e.preventDefault(); submit(); }
+            else if (e.key === "Escape") { e.preventDefault(); closePwPrompt(); }
+        });
+    }
+
+    /* Conexión desde el MODO CONECTAR (clic en dos dispositivos). Decide
+       cable vs WiFi; si es WiFi a un AP protegido y el cliente no tiene las
+       credenciales correctas guardadas, pide la contraseña en el modal. */
+    NF.tabs.connectWireless = function (a, b) {
+        if (!a || !b || a.id === b.id) return;
+        const kind = NF.links.linkKind(a, b);
+        if (kind !== "wireless") { NF.links.create(a, b); return; }
+
+        const ra = NF.ip.radioConfig(a), rb = NF.ip.radioConfig(b);
+        let ap, r, cli;
+        if (ra && !rb) { ap = a; r = ra; cli = b; }
+        else if (rb && !ra) { ap = b; r = rb; cli = a; }
+        else { NF.links.create(a, b); return; }   /* AP↔AP u otro: sin auth de cliente */
+
+        if (!("wifiSsid" in cli)) { NF.links.create(a, b); return; }
+
+        const found = { dev: ap, r: r };
+        if (r.security === "Abierta") {
+            cli.wifiSsid = r.ssid || cli.wifiSsid;
+            cli.wifiPassword = "";
+            NF.devices.update(cli);
+            NF.links.create(a, b);
+            return;
+        }
+        /* Protegida: si ya recuerda las credenciales correctas, conecta. */
+        if ((cli.wifiSsid || "") === (r.ssid || "") && (cli.wifiPassword || "") === (r.password || "")) {
+            NF.links.create(a, b);
+            return;
+        }
+        /* Si no, pide la contraseña. */
+        openPwPrompt(cli, found);
+    };
 
     function disconnectWifi(d) {
         const ssid = (d.wifiSsid || "").trim();
@@ -542,13 +668,9 @@ NF.tabs = NF.tabs || {};
 
     function bindScanButtons(d) {
         inspectorEl().querySelectorAll(".wifi-net").forEach(btn => {
-            btn.addEventListener("click", () => {
-                d.wifiSsid = btn.dataset.ssid;
-                /* Red abierta: no requiere contraseña. */
-                if (btn.dataset.sec === "Abierta") d.wifiPassword = "";
-                NF.devices.update(d);
-                NF.inspector.render();
-            });
+            /* Tocar una red intenta conectar: abierta ⇒ directo;
+               protegida ⇒ modal de contraseña. */
+            btn.addEventListener("click", () => connectToNetwork(d, btn.dataset.ssid));
         });
     }
 
