@@ -18,11 +18,12 @@ NF.tabs = NF.tabs || {};
         return '<div class="field"><label>' + label + '</label>' + inputHtml +
             (hint ? '<div class="hint">' + hint + '</div>' : '') + '</div>';
     }
-    function inp(id, val, mono, type) {
+    function inp(id, val, mono, type, ph) {
         type = type || "text";
         const cls = mono ? ' class="mono"' : '';
         const v = (val == null ? "" : val);
-        return '<input type="' + type + '" id="' + id + '"' + cls + ' value="' + esc(v) + '">';
+        const phAttr = ph ? ' placeholder="' + esc(ph) + '"' : '';
+        return '<input type="' + type + '" id="' + id + '"' + cls + phAttr + ' value="' + esc(v) + '">';
     }
     function selBox(id, opts, current) {
         const html = opts.map((o) => {
@@ -348,9 +349,9 @@ NF.tabs = NF.tabs || {};
        Para un AP suelto, r === d. Para un router con AP integrado, r === d.embeddedAp. */
     function tabApWifi(d, r) {
         r = r || d;
-        return fld("SSID", inp("fSsid", r.ssid)) +
+        return fld("SSID", inp("fSsid", r.ssid, false, "text", "Define el nombre de la red"), "Obligatorio para emitir WiFi.") +
             fld("Seguridad", selBox("fSec", NF.config.SECURITY_OPTIONS.map(s => [s, s]), r.security)) +
-            (r.security !== "Abierta" ? fld("Contraseña", inp("fPass", r.password, true)) : "") +
+            (r.security !== "Abierta" ? fld("Contraseña", inp("fPass", r.password, true, "text", "Define una contraseña")) : "") +
             fld("VLAN", inp("fVlan", r.vlan, true, "number")) +
             fld("SSID oculto", tog("fHidden", !!r.hidden, r.hidden ? "Oculto" : "Visible")) +
             fld("Red de invitados (SSID)", inp("fGuest", r.guestSsid), "Vacío = sin red de invitados.");
@@ -410,8 +411,8 @@ NF.tabs = NF.tabs || {};
     }
 
     function tabEndWifi(d) {
-        return fld("SSID al que se conecta", inp("fWSsid", d.wifiSsid)) +
-            fld("Contraseña", inp("fWPass", d.wifiPassword, true), "Debe coincidir con la del AP.");
+        return fld("SSID al que se conecta", inp("fWSsid", d.wifiSsid, false, "text", "Nombre de la red WiFi"), "Debe coincidir con la del AP.") +
+            fld("Contraseña", inp("fWPass", d.wifiPassword, true, "text", "Contraseña de la red"), "Debe coincidir con la del AP.");
     }
 
     function tabServices(d) {

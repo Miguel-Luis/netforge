@@ -42,7 +42,13 @@ NF.feas = (function () {
         if (!e) return { ok: true };
         const { ap, radio, cli } = e;
         if (!cli) return { ok: true };
-        if (!["laptop", "phone", "camera"].includes(cli.type)) return { ok: true };
+        if (!["laptop", "phone", "camera", "printer"].includes(cli.type)) return { ok: true };
+        if (!(radio.ssid || "").trim()) {
+            return { ok: false, reason: `WiFi: ${ap.name} no tiene un SSID configurado` };
+        }
+        if (!(cli.wifiSsid || "").trim()) {
+            return { ok: false, reason: `WiFi: ${cli.name} no tiene una red WiFi configurada` };
+        }
         if ((cli.wifiSsid || "") !== (radio.ssid || "")) {
             return { ok: false, reason: `WiFi: ${cli.name} busca SSID '${cli.wifiSsid || ""}' pero ${ap.name} emite '${radio.ssid || ""}'` };
         }

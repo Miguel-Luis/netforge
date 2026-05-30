@@ -45,8 +45,8 @@ NF.config = (function () {
     };
 
     const DEFAULT_DNS = ["8.8.8.8", "1.1.1.1"];
-    const DEFAULT_SSID = "NetForge-WiFi";
-    const DEFAULT_WIFI_PASS = "netforge123";
+    const DEFAULT_SSID = "";
+    const DEFAULT_WIFI_PASS = "";
     const PORT_SPEEDS = ["100M", "1G", "2.5G", "10G"];
     const DUPLEX = ["full", "half"];
     const SECURITY_OPTIONS = ["Abierta", "WPA2", "WPA3", "WPA2/WPA3"];
