@@ -1056,6 +1056,37 @@ input[type=range]::-webkit-slider-thumb {
     background: rgba(240, 80, 110, .2)
 }
 
+.btn-wifi {
+    width: 100%;
+    padding: 10px;
+    margin-top: 4px;
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(34, 211, 238, .22), rgba(59, 130, 246, .22));
+    border: 1px solid rgba(34, 211, 238, .55);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: .14s;
+}
+
+.btn-wifi:hover {
+    background: linear-gradient(180deg, rgba(34, 211, 238, .35), rgba(59, 130, 246, .35));
+    border-color: var(--accent);
+}
+
+.btn-wifi.connected {
+    background: rgba(52, 211, 153, .12);
+    border-color: rgba(52, 211, 153, .45);
+    color: var(--ok, #34d399);
+}
+
+.btn-wifi.connected:hover {
+    background: rgba(240, 80, 110, .14);
+    border-color: rgba(240, 80, 110, .4);
+    color: var(--err);
+}
+
 .btn-prime {
     width: 100%;
     padding: 10px;

@@ -466,9 +466,78 @@ NF.tabs = NF.tabs || {};
     }
 
     function tabEndWifi(d) {
+        const radio = findRadioForSsid(d, (d.wifiSsid || "").trim());
+        const connected = radio && NF.state.links.some(l => l.kind === "wireless" &&
+            ((l.from === d.id && l.to === radio.dev.id) || (l.to === d.id && l.from === radio.dev.id)));
+        const btn = connected
+            ? '<button class="btn-wifi connected" id="fWDisconnect">Desconectar de «' + esc(d.wifiSsid) + '»</button>'
+            : '<button class="btn-wifi" id="fWConnect">Conectar</button>';
         return '<div class="field"><label>Redes disponibles</label><div id="wifiScan">' + scanHtml(d) + '</div></div>' +
             fld("SSID al que se conecta", inp("fWSsid", d.wifiSsid, false, "text", "Nombre de la red WiFi"), "Selecciónala arriba, o escríbela a mano (p. ej. para redes ocultas).") +
-            fld("Contraseña", inp("fWPass", d.wifiPassword, true, "text", "Contraseña de la red"), "Debe coincidir con la del AP.");
+            fld("Contraseña", inp("fWPass", d.wifiPassword, true, "text", "Contraseña de la red"), "Debe coincidir con la del AP.") +
+            btn;
+    }
+
+    /* Busca el mejor radio (AP suelto o router con AP integrado) al alcance
+       cuyo SSID coincide con el indicado. Incluye redes ocultas. */
+    function findRadioForSsid(d, ssid) {
+        if (!ssid) return null;
+        let best = null, bestRssi = -1e9;
+        for (const dev of NF.state.devices) {
+            if (dev.id === d.id || !dev.on) continue;
+            const r = NF.ip.radioConfig(dev);
+            if (!r || (r.ssid || "") !== ssid) continue;
+            const range = NF.ip.radioRange(dev);
+            const dist = NF.geo.dist(d, dev);
+            if (dist > range) continue;
+            const rssi = NF.ip.estRssi(dist, r.txPower || 18, NF.ip.apRange(r));
+            if (rssi > bestRssi) { bestRssi = rssi; best = { dev, r, rssi }; }
+        }
+        return best;
+    }
+
+    function connectWifi(d) {
+        const ssid = (d.wifiSsid || "").trim();
+        if (!ssid) {
+            NF.notify.toast("Primero selecciona o escribe una red WiFi.", "error");
+            return;
+        }
+        const found = findRadioForSsid(d, ssid);
+        if (!found) {
+            NF.notify.toast("No se encontró la red «" + ssid + "» al alcance.", "error");
+            NF.notify.log("WiFi: " + d.name + " no encuentra la red «" + ssid + "» en su rango", "error");
+            return;
+        }
+        const r = found.r;
+        if (r.security !== "Abierta" && (d.wifiPassword || "") !== (r.password || "")) {
+            NF.notify.toast("Contraseña incorrecta para «" + ssid + "».", "error");
+            NF.notify.log("WiFi: contraseña incorrecta de " + d.name + " para «" + ssid + "»", "error");
+            return;
+        }
+        if ((r.macFilter || []).length > 0 && !r.macFilter.includes(d.mac)) {
+            NF.notify.toast("El filtrado MAC de " + found.dev.name + " bloquea a " + d.name + ".", "error");
+            NF.notify.log("WiFi: filtrado MAC bloquea a " + d.name + " en " + found.dev.name, "error");
+            return;
+        }
+        const link = NF.links.create(d, found.dev);
+        if (link) {
+            NF.notify.toast(d.name + " conectado a «" + ssid + "».", "success");
+        }
+        /* Volvemos a seleccionar el dispositivo para seguir en su pestaña
+           WiFi (create() habría seleccionado el enlace). */
+        NF.state.selection = { kind: "device", id: d.id };
+        NF.bus.emit("selection:changed");
+    }
+
+    function disconnectWifi(d) {
+        const ssid = (d.wifiSsid || "").trim();
+        const found = findRadioForSsid(d, ssid);
+        const links = NF.state.links.filter(l => l.kind === "wireless" &&
+            (found ? ((l.from === d.id && l.to === found.dev.id) || (l.to === d.id && l.from === found.dev.id))
+                   : (l.from === d.id || l.to === d.id)));
+        links.forEach(l => NF.links.remove(l.id));
+        NF.state.selection = { kind: "device", id: d.id };
+        NF.bus.emit("selection:changed");
     }
 
     function bindScanButtons(d) {
@@ -850,6 +919,8 @@ NF.tabs = NF.tabs || {};
         if (!["laptop", "phone", "camera", "printer"].includes(d.type)) return;
         if ($("#fWSsid")) $("#fWSsid").addEventListener("input", e => { d.wifiSsid = e.target.value; NF.devices.update(d); });
         if ($("#fWPass")) $("#fWPass").addEventListener("input", e => { d.wifiPassword = e.target.value; NF.devices.update(d); });
+        if ($("#fWConnect")) $("#fWConnect").addEventListener("click", () => connectWifi(d));
+        if ($("#fWDisconnect")) $("#fWDisconnect").addEventListener("click", () => disconnectWifi(d));
         bindScanButtons(d);
     }
 
