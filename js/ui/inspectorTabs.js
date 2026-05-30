@@ -420,10 +420,80 @@ NF.tabs = NF.tabs || {};
             tabApSec(d, d.embeddedAp);
     }
 
+    /* Escanea las redes WiFi al alcance del dispositivo: APs y routers con
+       AP integrado, encendidos, con SSID y no ocultos, cuyo halo cubre al
+       dispositivo. Devuelve la lista ordenada por mejor señal. */
+    function scanNetworks(d) {
+        const out = [];
+        for (const dev of NF.state.devices) {
+            if (dev.id === d.id || !dev.on) continue;
+            const r = NF.ip.radioConfig(dev);
+            if (!r || !(r.ssid || "").trim() || r.hidden) continue;
+            const range = NF.ip.radioRange(dev);
+            const dist = NF.geo.dist(d, dev);
+            if (dist > range) continue;
+            const rssi = NF.ip.estRssi(dist, r.txPower || 18, NF.ip.apRange(r));
+            out.push({ ssid: r.ssid, security: r.security || "Abierta", rssi, q: NF.ip.rssiQuality(rssi), ap: dev.name });
+        }
+        out.sort((a, b) => b.rssi - a.rssi);
+        return out;
+    }
+
+    function wifiSignalIco(cls) {
+        return '<svg class="' + cls + '" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M2 8.5a16 16 0 0 1 20 0"/><path d="M5 12a11 11 0 0 1 14 0"/><path d="M8.5 15.5a6 6 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></svg>';
+    }
+
+    /* Solo el contenido del escaneo (lista o aviso), para poder
+       regenerarlo en vivo mientras se arrastra el dispositivo. */
+    function scanHtml(d) {
+        const nets = scanNetworks(d);
+        if (!nets.length) {
+            return '<div class="hint">No hay redes WiFi al alcance. Acerca el dispositivo al halo de un punto de acceso (las redes ocultas no aparecen).</div>';
+        }
+        return '<div class="wifi-scan">' + nets.map(n => {
+            const sel = n.ssid === d.wifiSsid;
+            const lock = n.security !== "Abierta"
+                ? '<svg class="wifi-lock" viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>'
+                : '';
+            return '<button class="wifi-net' + (sel ? ' sel' : '') + '" data-ssid="' + esc(n.ssid) + '" data-sec="' + esc(n.security) + '">' +
+                '<span class="wifi-net-ico ' + n.q.cls + '">' + wifiSignalIco('') + '</span>' +
+                '<div class="wifi-net-info"><div class="wifi-net-name">' + esc(n.ssid) + ' ' + lock + '</div>' +
+                '<div class="wifi-net-meta">' + esc(n.security) + ' · ' + n.rssi + ' dBm · ' + n.q.label + '</div></div>' +
+                (sel ? '<span class="wifi-net-check">✓</span>' : '') +
+                '</button>';
+        }).join("") + '</div>';
+    }
+
     function tabEndWifi(d) {
-        return fld("SSID al que se conecta", inp("fWSsid", d.wifiSsid, false, "text", "Nombre de la red WiFi"), "Debe coincidir con la del AP.") +
+        return '<div class="field"><label>Redes disponibles</label><div id="wifiScan">' + scanHtml(d) + '</div></div>' +
+            fld("SSID al que se conecta", inp("fWSsid", d.wifiSsid, false, "text", "Nombre de la red WiFi"), "Selecciónala arriba, o escríbela a mano (p. ej. para redes ocultas).") +
             fld("Contraseña", inp("fWPass", d.wifiPassword, true, "text", "Contraseña de la red"), "Debe coincidir con la del AP.");
     }
+
+    function bindScanButtons(d) {
+        inspectorEl().querySelectorAll(".wifi-net").forEach(btn => {
+            btn.addEventListener("click", () => {
+                d.wifiSsid = btn.dataset.ssid;
+                /* Red abierta: no requiere contraseña. */
+                if (btn.dataset.sec === "Abierta") d.wifiPassword = "";
+                NF.devices.update(d);
+                NF.inspector.render();
+            });
+        });
+    }
+
+    /* Regenera la lista de redes en vivo (durante el arrastre) sin re-
+       renderizar todo el inspector, para no perder el foco de los inputs. */
+    NF.tabs.refreshScan = function (d) {
+        if (!d || !["laptop", "phone", "camera", "printer"].includes(d.type)) return;
+        const insp = inspectorEl();
+        if (!insp) return;
+        const box = insp.querySelector("#wifiScan");
+        if (!box) return;
+        box.innerHTML = scanHtml(d);
+        bindScanButtons(d);
+    };
 
     function tabServices(d) {
         if (d.type === "server") {
@@ -777,9 +847,10 @@ NF.tabs = NF.tabs || {};
     }
 
     function bindEndWifi(d) {
-        if (!["laptop", "phone", "camera"].includes(d.type)) return;
+        if (!["laptop", "phone", "camera", "printer"].includes(d.type)) return;
         if ($("#fWSsid")) $("#fWSsid").addEventListener("input", e => { d.wifiSsid = e.target.value; NF.devices.update(d); });
         if ($("#fWPass")) $("#fWPass").addEventListener("input", e => { d.wifiPassword = e.target.value; NF.devices.update(d); });
+        bindScanButtons(d);
     }
 
     function bindSvc(d) {

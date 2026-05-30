@@ -74,6 +74,15 @@ NF.nodes = (function () {
             d.y = Math.round(orig.y + (ev.clientY - start.y) / NF.state.view.scale);
             positionNode(d);
             NF.render.refresh();
+            /* Refrescamos en vivo la lista de redes WiFi del dispositivo
+               seleccionado (las redes aparecen/desaparecen según entre o
+               salga del halo de cada AP). Cubre arrastrar el propio cliente
+               o mover un AP mientras el cliente está seleccionado. */
+            const sel = NF.state.selection;
+            if (NF.tabs.refreshScan && sel && sel.kind === "device") {
+                const selDev = NF.devices.byId(sel.id);
+                if (selDev) NF.tabs.refreshScan(selDev);
+            }
             if (!canEmbed) return;
             const overEl = nodeUnderCursor(ev.clientX, ev.clientY, d._el);
             const overDev = overEl ? NF.devices.byId(overEl.dataset.id) : null;
