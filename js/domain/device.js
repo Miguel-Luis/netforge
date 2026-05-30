@@ -137,23 +137,23 @@ NF.devices = (function () {
                     ]
                 };
             case "pc":
-            case "printer":
                 return {
                     ...base, ipMode: "dhcp",
-                    exposedPorts: type === "printer"
-                        ? [{ name: "IPP", port: 631, proto: "tcp", enabled: true }]
-                        : []
+                    exposedPorts: []
                 };
             case "laptop":
             case "phone":
             case "camera":
+            case "printer":
                 return {
                     ...base, ipMode: "dhcp",
                     wifiSsid: C.DEFAULT_SSID,
                     wifiPassword: C.DEFAULT_WIFI_PASS,
                     exposedPorts: type === "camera"
                         ? [{ name: "RTSP", port: 554, proto: "tcp", enabled: true }]
-                        : []
+                        : type === "printer"
+                            ? [{ name: "IPP", port: 631, proto: "tcp", enabled: true }]
+                            : []
                 };
         }
         return base;

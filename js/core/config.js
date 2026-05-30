@@ -18,7 +18,7 @@ NF.config = (function () {
         pc: { label: "PC de escritorio", color: "#60a5fa", cat: "dev" },
         laptop: { label: "Laptop", color: "#818cf8", cat: "dev", wireless: true },
         phone: { label: "Smartphone", color: "#f472b6", cat: "dev", wireless: true },
-        printer: { label: "Impresora", color: "#fbbf24", cat: "dev" },
+        printer: { label: "Impresora", color: "#fbbf24", cat: "dev", wireless: true },
         camera: { label: "Cámara IP", color: "#fb923c", cat: "dev", wireless: true },
     };
 
@@ -65,7 +65,7 @@ NF.config = (function () {
         laptop: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["svc", "Servicios"]],
         phone: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["svc", "Servicios"]],
         camera: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["svc", "Servicios"]],
-        printer: [["general", "General"], ["red", "Red"], ["svc", "Servicios"]]
+        printer: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["svc", "Servicios"]]
     };
 
     /* Campos que se serializan al guardar (JSON). */
