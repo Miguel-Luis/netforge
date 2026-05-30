@@ -42,12 +42,17 @@ NF.ip = (function () {
        Más potencia (txPower) ⇒ mayor radio de cobertura ⇒ mejor RSSI a la
        misma distancia. Si no se pasa rangePx, se deriva de la potencia. */
     function estRssi(distPx, txPower, rangePx) {
-        const NEAR = -30, EDGE = -90;
+        const NEAR = -30, EDGE = -80;
         const d = Math.max(1, distPx);
         const R = Math.max(60, rangePx || apRange({ txPower: txPower }));
-        let t = Math.log10(d) / Math.log10(R);   /* 0 junto al AP, 1 en el borde */
+        /* t = 0 pegado al AP (≤10 px), 1 en el borde del halo de cobertura.
+           El interior del halo conserva buena señal; la degradación fuerte
+           se concentra cerca del borde. Más potencia ⇒ halo mayor ⇒ a la
+           misma distancia el cliente queda a menor fracción del radio ⇒
+           mejor RSSI. */
+        let t = Math.log10(Math.max(d, 10) / 10) / Math.log10(R / 10);
         if (t < 0) t = 0;
-        if (t > 1.5) t = 1.5;                     /* algo más allá del borde */
+        if (t > 1.4) t = 1.4;                     /* algo más allá del borde */
         return Math.round(NEAR + (EDGE - NEAR) * t);
     }
 

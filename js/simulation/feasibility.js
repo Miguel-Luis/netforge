@@ -29,11 +29,12 @@ NF.feas = (function () {
         const e = radioEndpoint(link);
         if (!e) return { latencyAdd: 0, lossAdd: 0, rssi: null };
         const rssi = NF.ip.estRssi(NF.geo.dist(e.ap, e.cli), e.radio.txPower || 18, NF.ip.apRange(e.radio));
-        /* Por debajo de -67 dBm (mínimo recomendado) la conexión empieza a
-           degradarse: sube la latencia y la pérdida de paquetes. */
-        const deficit = Math.max(0, -67 - rssi);
+        /* Hasta ~-72 dBm la conexión va bien. Por debajo empieza a
+           degradarse: sube la latencia y la pérdida de paquetes, de forma
+           notoria solo cerca del borde de cobertura. */
+        const deficit = Math.max(0, -72 - rssi);
         const latencyAdd = deficit * 0.8;
-        const lossAdd = Math.min(95, deficit * 2.2);
+        const lossAdd = Math.min(90, deficit * 2.5);
         return { latencyAdd, lossAdd, rssi };
     }
 
