@@ -17,7 +17,7 @@ NF.png = (function () {
         let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
         S.devices.forEach(d => {
             const radio = NF.ip.radioConfig(d);
-            const p = radio ? apRange(radio) : 62;
+            const p = radio ? apRange(radio) : NF.ip.isBtHost(d) ? NF.ip.btRange(d) : 62;
             minX = Math.min(minX, d.x - p); maxX = Math.max(maxX, d.x + p);
             minY = Math.min(minY, d.y - p); maxY = Math.max(maxY, d.y + p);
         });
@@ -57,16 +57,33 @@ NF.png = (function () {
             ctx.setLineDash([]);
         });
 
+        /* Halos Bluetooth — dispositivos host (azul, distinto del WiFi teal). */
+        S.devices.filter(d => NF.ip.isBtHost(d) && d.on).forEach(d => {
+            const r = NF.ip.btRange(d);
+            const grd = ctx.createRadialGradient(d.x, d.y, 4, d.x, d.y, r);
+            grd.addColorStop(0, "rgba(59,130,246,.13)");
+            grd.addColorStop(1, "rgba(59,130,246,0)");
+            ctx.fillStyle = grd;
+            ctx.beginPath(); ctx.arc(d.x, d.y, r, 0, 7); ctx.fill();
+            ctx.strokeStyle = "rgba(59,130,246,.5)";
+            ctx.lineWidth = 1.4;
+            ctx.setLineDash([4, 6]);
+            ctx.beginPath(); ctx.arc(d.x, d.y, r, 0, 7); ctx.stroke();
+            ctx.setLineDash([]);
+        });
+
         /* Enlaces */
         S.links.forEach(l => {
             const a = NF.devices.byId(l.from), b = NF.devices.byId(l.to);
             if (!a || !b) return;
             const ep = NF.geo.endpoints(a, b);
-            const oor = l.kind === "wireless" && !NF.links.wirelessOk(l);
+            const oor = (l.kind === "wireless" && !NF.links.wirelessOk(l)) ||
+                        (l.kind === "bluetooth" && !NF.links.btOk(l));
             ctx.lineWidth = 3.2; ctx.lineCap = "round";
             if (l.status === "down") { ctx.strokeStyle = "#f0506e"; ctx.setLineDash([7, 7]); }
             else if (oor) { ctx.strokeStyle = "#fb923c"; ctx.setLineDash([3, 7]); }
             else if (l.kind === "wireless") { ctx.strokeStyle = "#2dd4bf"; ctx.setLineDash([2, 8]); }
+            else if (l.kind === "bluetooth") { ctx.strokeStyle = "#3b82f6"; ctx.setLineDash([1, 7]); }
             else { ctx.strokeStyle = "#3a6a8f"; ctx.setLineDash([]); }
             ctx.beginPath(); ctx.moveTo(ep.x1, ep.y1); ctx.lineTo(ep.x2, ep.y2); ctx.stroke();
             ctx.setLineDash([]);

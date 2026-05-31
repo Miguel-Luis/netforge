@@ -79,9 +79,12 @@ NF.nodes = (function () {
                salga del halo de cada AP). Cubre arrastrar el propio cliente
                o mover un AP mientras el cliente está seleccionado. */
             const sel = NF.state.selection;
-            if (NF.tabs.refreshScan && sel && sel.kind === "device") {
+            if (sel && sel.kind === "device") {
                 const selDev = NF.devices.byId(sel.id);
-                if (selDev) NF.tabs.refreshScan(selDev);
+                if (selDev) {
+                    if (NF.tabs.refreshScans) NF.tabs.refreshScans(selDev);
+                    else if (NF.tabs.refreshScan) NF.tabs.refreshScan(selDev);
+                }
             }
             if (!canEmbed) return;
             const overEl = nodeUnderCursor(ev.clientX, ev.clientY, d._el);

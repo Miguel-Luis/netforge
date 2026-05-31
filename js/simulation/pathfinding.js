@@ -35,6 +35,7 @@ NF.path = (function () {
             if (!curDev) continue;
 
             for (const l of NF.state.links) {
+                if (l.kind === "bluetooth") continue;   /* BT no transporta tráfico IP */
                 const oId = l.from === cur.node ? l.to : (l.to === cur.node ? l.from : null);
                 if (!oId) continue;
                 if (NF.feas.edgeBlock(l)) continue;
@@ -87,6 +88,7 @@ NF.path = (function () {
             const dev = NF.devices.byId(cur.node);
             if (dev !== src && predicate(dev)) return dev;
             for (const l of NF.state.links) {
+                if (l.kind === "bluetooth") continue;   /* BT no transporta tráfico IP */
                 if (NF.feas.edgeBlock(l)) continue;
                 const o = l.from === cur.node ? l.to : (l.to === cur.node ? l.from : null);
                 if (!o) continue;

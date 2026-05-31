@@ -92,5 +92,24 @@ NF.ip = (function () {
         return r ? apRange(r) : 0;
     }
 
-    return { ipToInt, intToIp, sameSubnet, genMac, apRange, estRssi, rssiQuality, hasWifiRadio, radioConfig, radioRange };
+    /* === Bluetooth === alcance corto (~10 m). Los "host" (móvil, tablet,
+       consola) tienen mayor alcance que los periféricos. */
+    function hasBt(d) {
+        const T = d && NF.config.TYPES[d.type];
+        return !!(T && T.bt);
+    }
+    function isBtHost(d) {
+        const T = d && NF.config.TYPES[d.type];
+        return !!(T && T.btHost);
+    }
+    function btRange(d) {
+        if (!hasBt(d)) return 0;
+        return isBtHost(d) ? 150 : 110;
+    }
+
+    return {
+        ipToInt, intToIp, sameSubnet, genMac, apRange, estRssi, rssiQuality,
+        hasWifiRadio, radioConfig, radioRange,
+        hasBt, isBtHost, btRange
+    };
 })();

@@ -541,6 +541,49 @@ g.embedded .wifi-ring {
     }
 }
 
+/* bluetooth link + halo (azul, distinto de las ondas WiFi teal) */
+.link-line.bluetooth {
+    stroke: #3b82f6;
+    stroke-dasharray: 1 7;
+    stroke-width: 3px;
+    filter: drop-shadow(0 0 4px rgba(59, 130, 246, .55))
+}
+
+.bt-fill {
+    fill: rgba(59, 130, 246, .045)
+}
+
+.bt-ring {
+    fill: none;
+    stroke: #3b82f6;
+    stroke-width: 1.5px;
+    stroke-dasharray: 4 6;
+    opacity: 0;
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: btPulse 2.6s ease-out infinite
+}
+
+.bt-ring.b2 {
+    animation-delay: 1.3s
+}
+
+@keyframes btPulse {
+    0% {
+        transform: scale(.22);
+        opacity: 0
+    }
+
+    18% {
+        opacity: .5
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 0
+    }
+}
+
 /* rubber band */
 #rubber {
     stroke: #a855f7;
@@ -1852,6 +1895,75 @@ input[type=range]::-webkit-slider-thumb {
 .wifi-net-check {
     flex: 0 0 auto;
     color: var(--accent);
+    font-weight: 700;
+}
+
+/* === Lista de dispositivos Bluetooth (inspector) === */
+.bt-scan {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.bt-net {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    width: 100%;
+    text-align: left;
+    background: var(--panel2, rgba(255, 255, 255, .03));
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+}
+
+.bt-net:hover {
+    border-color: rgba(59, 130, 246, .5);
+    background: rgba(59, 130, 246, .07);
+}
+
+.bt-net.sel {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, .14);
+}
+
+.bt-net.oor {
+    opacity: .6;
+}
+
+.bt-net-ico {
+    flex: 0 0 auto;
+    display: inline-flex;
+    color: #3b82f6;
+}
+
+.bt-net-info {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.bt-net-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.bt-net-meta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+}
+
+.bt-net-check {
+    flex: 0 0 auto;
+    color: #3b82f6;
     font-weight: 700;
 }
 

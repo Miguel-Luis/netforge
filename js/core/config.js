@@ -17,16 +17,35 @@ NF.config = (function () {
         server: { label: "Servidor", color: "#34d399", cat: "srv" },
         pc: { label: "PC de escritorio", color: "#60a5fa", cat: "dev" },
         laptop: { label: "Laptop", color: "#818cf8", cat: "dev", wireless: true },
-        phone: { label: "Smartphone", color: "#f472b6", cat: "dev", wireless: true },
+        phone: { label: "Smartphone", color: "#f472b6", cat: "dev", wireless: true, bt: true, btHost: true },
+        tablet: { label: "Tablet", color: "#38bdf8", cat: "dev", wireless: true, bt: true, btHost: true },
         printer: { label: "Impresora", color: "#fbbf24", cat: "dev", wireless: true },
         camera: { label: "Cámara IP", color: "#fb923c", cat: "dev", wireless: true },
+        /* === Dispositivos Bluetooth === */
+        console: { label: "Consola", color: "#a78bfa", cat: "bt", wireless: true, bt: true, btHost: true },
+        gamepad: { label: "Mando inalámbrico", color: "#fbbf24", cat: "bt", bt: true },
+        headphones: { label: "Audífonos", color: "#5eead4", cat: "bt", bt: true },
+        soundbar: { label: "Barra de sonido", color: "#84cc16", cat: "bt", bt: true },
+        smartwatch: { label: "Smartwatch", color: "#e879f9", cat: "bt", bt: true },
     };
 
     const CATS = [
         { id: "net", name: "Infraestructura de red", types: ["internet", "router", "switch", "firewall", "ap"] },
         { id: "srv", name: "Servidores", types: ["server"] },
-        { id: "dev", name: "Dispositivos finales", types: ["pc", "laptop", "phone", "printer", "camera"] },
+        { id: "dev", name: "Dispositivos finales", types: ["pc", "laptop", "phone", "tablet", "printer", "camera"] },
+        { id: "bt", name: "Dispositivos Bluetooth", types: ["console", "gamepad", "headphones", "soundbar", "smartwatch"] },
     ];
+
+    /* Reglas de emparejamiento Bluetooth (simétricas). */
+    const BT_PAIRS = {
+        phone: ["headphones", "soundbar", "smartwatch"],
+        tablet: ["headphones", "soundbar"],
+        headphones: ["phone", "tablet"],
+        soundbar: ["phone", "tablet"],
+        smartwatch: ["phone"],
+        console: ["gamepad"],
+        gamepad: ["console"]
+    };
 
     /* Catálogo de servicios para simulación.
        kind: "ping" → no chequea servicio; "dhcp"/"dns" → flujo especial; "tcp"/"udp" → estándar */
@@ -63,9 +82,15 @@ NF.config = (function () {
         server: [["general", "General"], ["red", "Red"], ["svc", "Servicios"], ["status", "Estado"]],
         pc: [["general", "General"], ["red", "Red"], ["svc", "Servicios"]],
         laptop: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["svc", "Servicios"]],
-        phone: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["svc", "Servicios"]],
+        phone: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["bt", "Bluetooth"], ["svc", "Servicios"]],
+        tablet: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["bt", "Bluetooth"], ["svc", "Servicios"]],
         camera: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["svc", "Servicios"]],
-        printer: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["svc", "Servicios"]]
+        printer: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["svc", "Servicios"]],
+        console: [["general", "General"], ["red", "Red"], ["wifi", "WiFi"], ["bt", "Bluetooth"], ["svc", "Servicios"]],
+        gamepad: [["general", "General"], ["bt", "Bluetooth"]],
+        headphones: [["general", "General"], ["bt", "Bluetooth"]],
+        soundbar: [["general", "General"], ["bt", "Bluetooth"]],
+        smartwatch: [["general", "General"], ["bt", "Bluetooth"]]
     };
 
     /* Campos que se serializan al guardar (JSON). */
@@ -91,7 +116,7 @@ NF.config = (function () {
     const SAVE_VERSION = 2;
 
     return {
-        SVGNS, TYPES, CATS, SERVICES,
+        SVGNS, TYPES, CATS, SERVICES, BT_PAIRS,
         DEFAULT_DNS, DEFAULT_SSID, DEFAULT_WIFI_PASS,
         PORT_SPEEDS, DUPLEX, SECURITY_OPTIONS, BANDS, CHANNEL_WIDTHS,
         TABS_BY_TYPE, DEV_FIELDS, LINK_FIELDS, SAVE_VERSION

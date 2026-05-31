@@ -46,7 +46,7 @@ NF.feas = (function () {
         if (!e) return { ok: true };
         const { ap, radio, cli } = e;
         if (!cli) return { ok: true };
-        if (!["laptop", "phone", "camera", "printer"].includes(cli.type)) return { ok: true };
+        if (!["laptop", "phone", "tablet", "console", "camera", "printer"].includes(cli.type)) return { ok: true };
         if (!(radio.ssid || "").trim()) {
             return { ok: false, reason: `WiFi: ${ap.name} no tiene un SSID configurado` };
         }
@@ -77,6 +77,9 @@ NF.feas = (function () {
             if (!NF.links.wirelessOk(link)) return `Fuera de cobertura WiFi (${a.name}↔${b.name})`;
             const ass = wifiAssociation(link);
             if (!ass.ok) return ass.reason;
+        }
+        if (link.kind === "bluetooth") {
+            if (!NF.links.btOk(link)) return `Fuera de alcance Bluetooth (${a.name}↔${b.name})`;
         }
         return null;
     }

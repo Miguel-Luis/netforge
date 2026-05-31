@@ -45,7 +45,7 @@ NF.inspector = (function () {
         </div>
         <h3>Cómo usar</h3>
         <p class="tip"><b>1.</b> Arrastra dispositivos desde la izquierda al lienzo.</p>
-        <p class="tip"><b>2.</b> Pulsa <b>Conectar</b> y haz clic en dos dispositivos para unirlos con cable o WiFi.</p>
+        <p class="tip"><b>2.</b> Pulsa <b>Conectar</b> y haz clic en dos dispositivos para unirlos con cable, WiFi o Bluetooth.</p>
         <p class="tip"><b>3.</b> Pulsa <b>Simular</b> y elige origen y destino para enviar un paquete.</p>
         <p class="tip"><b>4.</b> Selecciona cualquier elemento para editar sus propiedades aquí.</p>
         <h3 style="margin-top:16px">Tipos de dispositivo</h3>
@@ -105,13 +105,17 @@ NF.inspector = (function () {
             const color = o ? (TYPES[o.type] ? TYPES[o.type].color : "#64748b") : "#64748b";
             const typeLabel = o && TYPES[o.type] ? TYPES[o.type].label : "—";
             const wireless = l.kind === "wireless";
-            const oor = wireless && !NF.links.wirelessOk(l);
+            const bluetooth = l.kind === "bluetooth";
+            const oor = (wireless && !NF.links.wirelessOk(l)) || (bluetooth && !NF.links.btOk(l));
             const down = l.status !== "up";
             let badge;
             if (down) badge = `<span class="badge warn">Caído</span>`;
             else if (oor) badge = `<span class="badge warn">Fuera de rango</span>`;
             else badge = `<span class="badge ok">Activo</span>`;
-            const kindIco = wireless
+            const kindLabel = wireless ? "WiFi" : bluetooth ? "Bluetooth" : "Cable";
+            const kindIco = bluetooth
+                ? `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>`
+                : wireless
                 ? `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5a10 10 0 0 1 14 0"/><path d="M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1"/></svg>`
                 : `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M7.7 16.3l8.6-8.6"/></svg>`;
             return `
@@ -120,7 +124,7 @@ NF.inspector = (function () {
                   <span class="conn-dot" style="background:${color}"></span>
                   <div class="conn-info">
                     <div class="conn-name">${name}</div>
-                    <div class="conn-meta"><span class="conn-kind">${kindIco}${wireless ? "WiFi" : "Cable"}</span> · ${typeLabel} ${badge}</div>
+                    <div class="conn-meta"><span class="conn-kind">${kindIco}${kindLabel}</span> · ${typeLabel} ${badge}</div>
                   </div>
                 </button>
                 <button class="conn-del" data-link="${l.id}" title="Eliminar conexión" aria-label="Eliminar conexión">
@@ -163,7 +167,9 @@ NF.inspector = (function () {
     function link(l) {
         const insp = NF.dom.refs().inspector;
         const a = NF.devices.byId(l.from), b = NF.devices.byId(l.to);
-        const oor = l.kind === "wireless" && !NF.links.wirelessOk(l);
+        const bluetooth = l.kind === "bluetooth";
+        const oor = (l.kind === "wireless" && !NF.links.wirelessOk(l)) ||
+                    (bluetooth && !NF.links.btOk(l));
         const dst = a && b ? Math.round(NF.geo.dist(a, b)) : 0;
         let rssi = null;
         if (l.kind === "wireless" && a && b) {
@@ -189,10 +195,12 @@ NF.inspector = (function () {
         </div>
 
         <div class="field"><label>Tipo de enlace</label>
-          <select id="fKind">
+          ${bluetooth
+            ? `<select id="fKind" disabled><option selected>Bluetooth</option></select>`
+            : `<select id="fKind">
             <option value="wired" ${l.kind === "wired" ? "selected" : ""}>Cable Ethernet</option>
             <option value="wireless" ${l.kind === "wireless" ? "selected" : ""} ${wirelessAllowed ? "" : "disabled"}>Inalámbrico (WiFi)${wirelessAllowed ? "" : " — sin radio en los extremos"}</option>
-          </select></div>
+          </select>`}</div>
 
         <div class="field"><label>Estado del enlace</label>
           <div class="switch"><span>${l.status === "up" ? "Activo" : "Caído"}</span>
@@ -216,7 +224,7 @@ NF.inspector = (function () {
         <div class="kvbox">
           <div class="kv"><span>Distancia</span><b>${dst} px</b></div>
           <div class="kv"><span>Cobertura</span>
-            <b>${l.kind === "wireless"
+            <b>${(l.kind === "wireless" || bluetooth)
                 ? (oor ? '<span class="badge warn">Fuera de rango</span>' : '<span class="badge ok">En rango</span>')
                 : '<span class="badge info">Cable</span>'}</b></div>
           ${l.kind === "wireless" ? `<div class="kv"><span>RSSI</span>
@@ -227,12 +235,14 @@ NF.inspector = (function () {
           ${b && b.type === "firewall" && l.zoneTo ? `<div class="kv"><span>${esc(b.name)} zona</span><b>${esc(l.zoneTo)}</b></div>` : ""}
         </div>
 
-        ${oor ? `<p class="tip" style="color:var(--warn)">Este enlace inalámbrico está fuera del alcance WiFi y no transmitirá datos. Acerca los dispositivos o aumenta la potencia del punto de acceso.</p>` : ""}
+        ${oor ? `<p class="tip" style="color:var(--warn)">${bluetooth
+            ? "Este enlace Bluetooth está fuera de alcance y no transmitirá datos. Acerca los dispositivos."
+            : "Este enlace inalámbrico está fuera del alcance WiFi y no transmitirá datos. Acerca los dispositivos o aumenta la potencia del punto de acceso."}</p>` : ""}
 
         <button class="del-btn" id="fDelL">Eliminar conexión</button>`;
 
         const $ = NF.dom.$;
-        $("#fKind").addEventListener("change", e => {
+        if ($("#fKind") && !bluetooth) $("#fKind").addEventListener("change", e => {
             const newKind = e.target.value;
             if (newKind === "wireless" && !wirelessAllowed) {
                 NF.notify.toast("Estos extremos no tienen radio WiFi.", "error");

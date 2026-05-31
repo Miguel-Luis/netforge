@@ -31,6 +31,7 @@ NF.dom = (function () {
             nodesLayer: $("#nodes"),
             linkLayer: $("#linkLayer"),
             wifiLayer: $("#wifiLayer"),
+            btLayer: $("#btLayer"),
             packetLayer: $("#packetLayer"),
             rubber: $("#rubber"),
             inspector: $("#inspector"),

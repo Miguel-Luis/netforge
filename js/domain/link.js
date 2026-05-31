@@ -10,6 +10,7 @@ NF.Link = class Link {
     }
 
     isWireless() { return this.kind === "wireless"; }
+    isBluetooth() { return this.kind === "bluetooth"; }
     isUp() { return this.status === "up"; }
     wirelessOk() { return NF.links.wirelessOk(this); }
     serialize() { return NF.utils.pick(this, NF.config.LINK_FIELDS); }
@@ -21,11 +22,18 @@ NF.links = (function () {
 
     function defaultsForLink(kind) {
         return {
-            bandwidthMbps: 1000,
-            latencyMs: kind === "wireless" ? 4 : 1,
+            bandwidthMbps: kind === "bluetooth" ? 3 : 1000,
+            latencyMs: kind === "wireless" ? 4 : kind === "bluetooth" ? 8 : 1,
             lossPct: 0,
-            mtu: 1500
+            mtu: kind === "bluetooth" ? 1021 : 1500
         };
+    }
+
+    /* ¿Estos dos tipos pueden emparejarse por Bluetooth? (simétrico) */
+    function canBluetoothPair(a, b) {
+        if (!a || !b || a.id === b.id) return false;
+        const list = NF.config.BT_PAIRS[a.type];
+        return !!(list && list.includes(b.type));
     }
 
     function linkKind(a, b) {
@@ -36,7 +44,17 @@ NF.links = (function () {
         if (ar && br) return "wireless";
         if (ar && T[b.type] && T[b.type].wireless) return "wireless";
         if (br && T[a.type] && T[a.type].wireless) return "wireless";
+        /* Si no es WiFi pero forman un par Bluetooth válido → bluetooth. */
+        if (canBluetoothPair(a, b)) return "bluetooth";
         return "wired";
+    }
+
+    /* ¿El enlace Bluetooth está dentro del alcance? */
+    function btOk(l) {
+        const a = NF.devices.byId(l.from), b = NF.devices.byId(l.to);
+        if (!a || !b) return false;
+        const range = Math.max(NF.ip.btRange(a), NF.ip.btRange(b)) || 110;
+        return NF.geo.dist(a, b) <= range;
     }
 
     /* ¿Este par puede llevar tráfico inalámbrico? */
@@ -54,15 +72,29 @@ NF.links = (function () {
         if (!a || !b) return { ok: false, reason: "Dispositivos inválidos." };
         if (a.id === b.id) return { ok: false, reason: "No puedes conectar un dispositivo consigo mismo." };
 
-        /* Smartphone solo se conecta (por WiFi) a algo con radio (AP o
-           router con AP integrado). */
+        /* Periféricos Bluetooth puros: solo se emparejan por BT con un
+           dispositivo compatible (no admiten cable ni WiFi). */
+        const BT_ONLY = ["headphones", "soundbar", "smartwatch", "gamepad"];
+        if (BT_ONLY.includes(a.type) || BT_ONLY.includes(b.type)) {
+            if (!canBluetoothPair(a, b)) {
+                const per = BT_ONLY.includes(a.type) ? a : b;
+                return {
+                    ok: false,
+                    reason: `${per.name} solo se conecta por Bluetooth a un dispositivo compatible.`
+                };
+            }
+            return { ok: true };
+        }
+
+        /* Smartphone: por WiFi a un AP/router con AP, o por Bluetooth a un
+           dispositivo compatible (audífonos, barra de sonido, smartwatch). */
         if (a.type === "phone" || b.type === "phone") {
             const phone = a.type === "phone" ? a : b;
             const other = phone === a ? b : a;
-            if (!NF.ip.hasWifiRadio(other)) {
+            if (!NF.ip.hasWifiRadio(other) && !canBluetoothPair(a, b)) {
                 return {
                     ok: false,
-                    reason: `${phone.name} solo se conecta por WiFi a un punto de acceso o router con AP integrado.`
+                    reason: `${phone.name} solo se conecta por WiFi a un punto de acceso o por Bluetooth a un dispositivo compatible.`
                 };
             }
         }
@@ -172,11 +204,13 @@ NF.links = (function () {
         });
         S.links.push(link);
         assignMeta(link);
-        NF.notify.log("Conexión creada: " + a.name + " <-> " + b.name + " (" + (link.kind === "wireless" ? "WiFi" : "cable") + ")", "info");
+        const kindWord = link.kind === "wireless" ? "WiFi" : link.kind === "bluetooth" ? "Bluetooth" : "cable";
+        NF.notify.log("Conexión creada: " + a.name + " <-> " + b.name + " (" + kindWord + ")", "info");
         S.selection = { kind: "link", id: link.id };
         NF.bus.emit("link:added", link);
         NF.bus.emit("selection:changed");
-        NF.notify.toast("Conexión " + (link.kind === "wireless" ? "inalámbrica" : "por cable") + " creada", "success");
+        const kindLabel = link.kind === "wireless" ? "inalámbrica" : link.kind === "bluetooth" ? "Bluetooth" : "por cable";
+        NF.notify.toast("Conexión " + kindLabel + " creada", "success");
         return link;
     }
 
@@ -204,8 +238,8 @@ NF.links = (function () {
     }
 
     return {
-        byId, defaultsForLink, linkKind, canBeWireless, validateConnection,
-        wirelessOk, assignMeta, portOnSwitch, zoneOnFw,
+        byId, defaultsForLink, linkKind, canBeWireless, canBluetoothPair,
+        validateConnection, wirelessOk, btOk, assignMeta, portOnSwitch, zoneOnFw,
         nextFreeSwitchPort, nextFwZone,
         create, remove, update, fromSerialized
     };

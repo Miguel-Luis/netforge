@@ -143,6 +143,8 @@ NF.devices = (function () {
                 };
             case "laptop":
             case "phone":
+            case "tablet":
+            case "console":
             case "camera":
             case "printer":
                 return {
@@ -155,6 +157,12 @@ NF.devices = (function () {
                             ? [{ name: "IPP", port: 631, proto: "tcp", enabled: true }]
                             : []
                 };
+            /* Periféricos Bluetooth puros: sin pila IP relevante; solo MAC BT. */
+            case "headphones":
+            case "soundbar":
+            case "smartwatch":
+            case "gamepad":
+                return { ...base, ipMode: "dhcp", gateway: "", dns: [], exposedPorts: [] };
         }
         return base;
     }

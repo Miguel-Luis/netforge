@@ -7,7 +7,7 @@ window.NF = window.NF || {};
 
 NF.render = (function () {
 
-    function refresh() { renderLinks(); syncWifi(); }
+    function refresh() { renderLinks(); syncWifi(); syncBt(); }
 
     function renderLinks() {
         const refs = NF.dom.refs();
@@ -19,9 +19,11 @@ NF.render = (function () {
             if (!a || !b) continue;
             const ep = NF.geo.endpoints(a, b);
             const d = `M ${ep.x1.toFixed(1)} ${ep.y1.toFixed(1)} L ${ep.x2.toFixed(1)} ${ep.y2.toFixed(1)}`;
-            const oor = l.kind === "wireless" && !NF.links.wirelessOk(l);
+            const oor = (l.kind === "wireless" && !NF.links.wirelessOk(l)) ||
+                        (l.kind === "bluetooth" && !NF.links.btOk(l));
             let cls = "link-line";
             if (l.kind === "wireless") cls += " wireless";
+            if (l.kind === "bluetooth") cls += " bluetooth";
             if (l.status === "down") cls += " down";
             if (oor) cls += " oor";
             if (S.selection && S.selection.kind === "link" && S.selection.id === l.id) cls += " sel";
@@ -66,6 +68,36 @@ NF.render = (function () {
         });
     }
 
+    /* Halo Bluetooth alrededor de los dispositivos "host" (móvil, tablet,
+       consola). Estética deliberadamente distinta de las ondas WiFi:
+       azul Bluetooth, anillos punteados y pulso más corto. */
+    function syncBt() {
+        const refs = NF.dom.refs();
+        if (!refs.btLayer) return;
+        const have = new Set();
+        const hosts = NF.state.devices.filter(d => NF.ip.isBtHost(d));
+        hosts.forEach(d => {
+            have.add(d.id);
+            const range = NF.ip.btRange(d);
+            let g = refs.btLayer.querySelector('[data-bt="' + d.id + '"]');
+            if (!g) {
+                g = NF.dom.svgEl("g");
+                g.setAttribute("data-bt", d.id);
+                g.innerHTML = '<circle class="bt-fill"/><circle class="bt-ring b1"/><circle class="bt-ring b2"/>';
+                refs.btLayer.appendChild(g);
+            }
+            g.querySelectorAll("circle").forEach(c => {
+                c.setAttribute("cx", d.x);
+                c.setAttribute("cy", d.y);
+                c.setAttribute("r", Math.max(1, range));
+            });
+            g.style.display = d.on ? "" : "none";
+        });
+        [...refs.btLayer.children].forEach(g => {
+            if (!have.has(g.getAttribute("data-bt"))) g.remove();
+        });
+    }
+
     function applyView() {
         const refs = NF.dom.refs();
         const v = NF.state.view;
@@ -96,7 +128,8 @@ NF.render = (function () {
         let minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
         devices.forEach(d => {
             const radio = NF.ip.radioConfig(d);
-            const p = radio ? NF.ip.apRange(radio) + 40 : 70;
+            const p = radio ? NF.ip.apRange(radio) + 40
+                : NF.ip.isBtHost(d) ? NF.ip.btRange(d) + 40 : 70;
             minX = Math.min(minX, d.x - p); maxX = Math.max(maxX, d.x + p);
             minY = Math.min(minY, d.y - p); maxY = Math.max(maxY, d.y + p);
         });
@@ -128,6 +161,7 @@ NF.render = (function () {
             const refs = NF.dom.refs();
             if (refs.linkLayer) refs.linkLayer.innerHTML = "";
             if (refs.wifiLayer) refs.wifiLayer.innerHTML = "";
+            if (refs.btLayer) refs.btLayer.innerHTML = "";
             updateEmpty();
         });
         NF.bus.on("state:loaded", () => {
@@ -136,5 +170,5 @@ NF.render = (function () {
         });
     }
 
-    return { refresh, renderLinks, syncWifi, applyView, zoomAt, fitView, updateEmpty, init };
+    return { refresh, renderLinks, syncWifi, syncBt, applyView, zoomAt, fitView, updateEmpty, init };
 })();

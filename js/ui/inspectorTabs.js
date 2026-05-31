@@ -67,6 +67,7 @@ NF.tabs = NF.tabs || {};
         if (tab === "zones") return tabFwZones(d);
         if (tab === "rules") return tabFwRules(d);
         if (tab === "svc")   return tabServices(d);
+        if (tab === "bt")    return tabBluetooth(d);
         return "";
     };
 
@@ -84,6 +85,7 @@ NF.tabs = NF.tabs || {};
         bindAp(d);
         bindRouterWifi(d);
         bindEndWifi(d);
+        bindBluetooth(d);
         bindSvc(d);
     };
 
@@ -684,13 +686,105 @@ NF.tabs = NF.tabs || {};
     /* Regenera la lista de redes en vivo (durante el arrastre) sin re-
        renderizar todo el inspector, para no perder el foco de los inputs. */
     NF.tabs.refreshScan = function (d) {
-        if (!d || !["laptop", "phone", "camera", "printer"].includes(d.type)) return;
+        if (!d || !["laptop", "phone", "tablet", "console", "camera", "printer"].includes(d.type)) return;
         const insp = inspectorEl();
         if (!insp) return;
         const box = insp.querySelector("#wifiScan");
         if (!box) return;
         box.innerHTML = scanHtml(d);
         bindScanButtons(d);
+    };
+
+    /* ====================== BLUETOOTH ====================== */
+
+    function btGlyph() {
+        return '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg>';
+    }
+
+    /* Dispositivos Bluetooth compatibles y al alcance. */
+    function btScanList(d) {
+        const out = [];
+        for (const dev of NF.state.devices) {
+            if (dev.id === d.id || !dev.on) continue;
+            if (!NF.links.canBluetoothPair(d, dev)) continue;
+            const range = Math.max(NF.ip.btRange(d), NF.ip.btRange(dev)) || 110;
+            const dist = NF.geo.dist(d, dev);
+            const paired = NF.state.links.some(l => l.kind === "bluetooth" &&
+                ((l.from === d.id && l.to === dev.id) || (l.to === d.id && l.from === dev.id)));
+            if (dist > range && !paired) continue;     /* fuera de alcance: solo se ve si ya está vinculado */
+            out.push({ dev, dist, paired, inRange: dist <= range });
+        }
+        out.sort((a, b) => a.dist - b.dist);
+        return out;
+    }
+
+    function btScanHtml(d) {
+        const list = btScanList(d);
+        if (!list.length) {
+            return '<div class="hint">No hay dispositivos Bluetooth compatibles al alcance. Acércalo a un dispositivo compatible para que aparezca.</div>';
+        }
+        return '<div class="bt-scan">' + list.map(n => {
+            const T = NF.config.TYPES[n.dev.type];
+            const meta = n.paired
+                ? (n.inRange ? "Vinculado" : "Vinculado · fuera de alcance")
+                : "A " + Math.round(n.dist) + " px";
+            return '<button class="bt-net' + (n.paired ? ' sel' : '') + (n.paired && !n.inRange ? ' oor' : '') + '" data-btid="' + esc(n.dev.id) + '">' +
+                '<span class="bt-net-ico">' + btGlyph() + '</span>' +
+                '<div class="bt-net-info"><div class="bt-net-name">' + esc(n.dev.name) + '</div>' +
+                '<div class="bt-net-meta">' + esc(T ? T.label : n.dev.type) + ' · ' + meta + '</div></div>' +
+                (n.paired ? '<span class="bt-net-check">✓</span>' : '') +
+                '</button>';
+        }).join("") + '</div>';
+    }
+
+    function tabBluetooth(d) {
+        return '<div class="field"><label>Dispositivos Bluetooth cercanos</label><div id="btScan">' + btScanHtml(d) + '</div></div>' +
+            '<div class="hint">Pulsa un dispositivo compatible para vincularlo o desvincularlo. El emparejamiento Bluetooth solo funciona dentro del alcance (halo azul).</div>';
+    }
+
+    /* Vincular / desvincular por Bluetooth al pulsar un dispositivo. */
+    function toggleBtPair(d, devId) {
+        const dev = NF.devices.byId(devId);
+        if (!dev) return;
+        const link = NF.state.links.find(l => l.kind === "bluetooth" &&
+            ((l.from === d.id && l.to === dev.id) || (l.to === d.id && l.from === dev.id)));
+        if (link) {
+            NF.links.remove(link.id);
+            NF.notify.toast(d.name + " desvinculado de " + dev.name + ".", "info");
+        } else {
+            const lk = NF.links.create(d, dev);
+            if (lk) NF.notify.toast(d.name + " vinculado con " + dev.name + " por Bluetooth.", "success");
+        }
+        NF.state.selection = { kind: "device", id: d.id };
+        NF.bus.emit("selection:changed");
+    }
+
+    function bindBtScan(d) {
+        inspectorEl().querySelectorAll(".bt-net").forEach(btn => {
+            btn.addEventListener("click", () => toggleBtPair(d, btn.dataset.btid));
+        });
+    }
+
+    function bindBluetooth(d) {
+        if (!NF.ip.hasBt(d)) return;
+        bindBtScan(d);
+    }
+
+    NF.tabs.refreshBtScan = function (d) {
+        if (!d || !NF.ip.hasBt(d)) return;
+        const insp = inspectorEl();
+        if (!insp) return;
+        const box = insp.querySelector("#btScan");
+        if (!box) return;
+        box.innerHTML = btScanHtml(d);
+        bindBtScan(d);
+    };
+
+    /* Refresco unificado de escaneos (WiFi + Bluetooth) durante el arrastre. */
+    NF.tabs.refreshScans = function (d) {
+        if (NF.tabs.refreshScan) NF.tabs.refreshScan(d);
+        if (NF.tabs.refreshBtScan) NF.tabs.refreshBtScan(d);
     };
 
     function tabServices(d) {
@@ -1045,7 +1139,7 @@ NF.tabs = NF.tabs || {};
     }
 
     function bindEndWifi(d) {
-        if (!["laptop", "phone", "camera", "printer"].includes(d.type)) return;
+        if (!["laptop", "phone", "tablet", "console", "camera", "printer"].includes(d.type)) return;
         if ($("#fWSsid")) $("#fWSsid").addEventListener("input", e => { d.wifiSsid = e.target.value; NF.devices.update(d); });
         if ($("#fWPass")) $("#fWPass").addEventListener("input", e => { d.wifiPassword = e.target.value; NF.devices.update(d); });
         if ($("#fWConnect")) $("#fWConnect").addEventListener("click", () => connectWifi(d));
