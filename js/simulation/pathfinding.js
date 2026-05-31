@@ -102,8 +102,17 @@ NF.path = (function () {
 
     /* Cuando no hay path, intenta dar una pista útil. */
     function diagnoseNoPath(src, dst) {
+        /* ¿Su única unión es un enlace Bluetooth directo? El BT no transporta
+           tráfico IP, así que ahí no hay "ruta" de red. */
+        const directBt = NF.state.links.find(l => l.kind === "bluetooth" &&
+            ((l.from === src.id && l.to === dst.id) || (l.from === dst.id && l.to === src.id)));
+        if (directBt) {
+            return `${src.name} y ${dst.name} están emparejados por Bluetooth, que no transporta tráfico IP. Para simular red necesitan una conexión por cable o WiFi.`;
+        }
+
         const issues = [];
         for (const l of NF.state.links) {
+            if (l.kind === "bluetooth") continue;   /* el BT no aporta rutas IP */
             if (l.from !== src.id && l.to !== src.id && l.from !== dst.id && l.to !== dst.id) continue;
             const reason = NF.feas.edgeBlock(l);
             if (reason) issues.push(reason);

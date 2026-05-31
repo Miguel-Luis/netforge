@@ -106,10 +106,17 @@ NF.ip = (function () {
         if (!hasBt(d)) return 0;
         return isBtHost(d) ? 150 : 110;
     }
+    /* Periférico Bluetooth puro (audífonos, barra, smartwatch, mando):
+       tiene radio BT pero NO pila de red (sin IP, no admite ping/tráfico IP).
+       Se identifica por tener bt sin capacidad WiFi. */
+    function isBtPeripheral(d) {
+        const T = d && NF.config.TYPES[d.type];
+        return !!(T && T.bt && !T.wireless);
+    }
 
     return {
         ipToInt, intToIp, sameSubnet, genMac, apRange, estRssi, rssiQuality,
         hasWifiRadio, radioConfig, radioRange,
-        hasBt, isBtHost, btRange
+        hasBt, isBtHost, btRange, isBtPeripheral
     };
 })();

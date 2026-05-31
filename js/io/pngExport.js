@@ -104,7 +104,7 @@ NF.png = (function () {
             ctx.fillStyle = "#e6ecfb"; ctx.font = "700 13px Segoe UI,sans-serif";
             ctx.fillText(d.name, d.x, y + s + 15);
             ctx.fillStyle = "#8492b3"; ctx.font = "11px monospace";
-            ctx.fillText(d.ip || "", d.x, y + s + 29);
+            ctx.fillText(NF.ip.isBtPeripheral(d) ? "Bluetooth" : (d.ip || ""), d.x, y + s + 29);
             ctx.restore();
         });
 

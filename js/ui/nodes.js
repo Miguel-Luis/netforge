@@ -34,7 +34,7 @@ NF.nodes = (function () {
         const n = d._el; if (!n) return;
         const S = NF.state;
         n.querySelector(".nm").textContent = d.name;
-        n.querySelector(".ipt").textContent = d.ip || "";
+        n.querySelector(".ipt").textContent = NF.ip.isBtPeripheral(d) ? "Bluetooth" : (d.ip || "");
         n.classList.toggle("off", !d.on);
         n.classList.toggle("sel", S.selection && S.selection.kind === "device" && S.selection.id === d.id);
         n.classList.toggle("csrc", S.pendingConnect && S.pendingConnect.id === d.id);

@@ -117,6 +117,17 @@ NF.Simulation = class Simulation {
             toast(off.name + " está apagado", "error"); return;
         }
 
+        /* Periféricos Bluetooth (audífonos, barra, smartwatch, mando) no
+           tienen pila IP: solo intercambian audio/entrada por Bluetooth, así
+           que no se les puede hacer ping ni dirigir tráfico de red. */
+        const peri = NF.ip.isBtPeripheral(src) ? src : (NF.ip.isBtPeripheral(dst) ? dst : null);
+        if (peri) {
+            const msg = `${peri.name} es un periférico Bluetooth: no tiene dirección IP. El Bluetooth solo transporta audio/datos del periférico, no tráfico de red, por lo que no se puede simular ping/IP hacia él.`;
+            log("SIMULACIÓN NO APLICABLE — " + msg, "error");
+            toast(peri.name + ": dispositivo Bluetooth sin IP", "error");
+            return;
+        }
+
         /* 1) Pre-flight gateway/subred (DHCP no requiere IP previa). */
         if (svc.kind !== "dhcp") {
             const gw = NF.pol.evalGateway(src, dst);

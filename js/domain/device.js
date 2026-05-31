@@ -39,6 +39,9 @@ NF.devices = (function () {
     function nextIp(type) {
         if (type === "internet") return "WAN";
         if (type === "router") return "192.168.1.1";
+        /* Periféricos Bluetooth puros no tienen pila IP. */
+        const T = NF.config.TYPES[type];
+        if (T && T.bt && !T.wireless) return "";
         return "192.168.1." + (NF.state.ipSeq++);
     }
 
@@ -215,6 +218,7 @@ NF.devices = (function () {
             on: raw.on !== false
         };
         if (merged.type === "ap") merged.range = NF.ip.apRange(merged);
+        if (NF.ip.isBtPeripheral(merged)) merged.ip = "";   /* periférico BT: sin IP */
         if (!merged.hostname) merged.hostname = String(merged.name || "").toLowerCase().replace(/\s+/g, "-");
         if (!merged.mac && merged.type !== "internet") merged.mac = NF.ip.genMac();
         return new NF.Device(merged);
