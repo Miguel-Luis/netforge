@@ -1,0 +1,2342 @@
+{
+  "v": 2,
+  "devices": [
+    {
+      "id": "d1",
+      "type": "internet",
+      "name": "Internet",
+      "x": 1400,
+      "y": -420,
+      "on": true,
+      "ip": "WAN",
+      "latencyBase": 22,
+      "jitter": 6,
+      "loss": 0.4,
+      "publicBlock": "203.0.113.0/24",
+      "hostname": "internet"
+    },
+    {
+      "id": "d2",
+      "type": "firewall",
+      "name": "FW-Metro",
+      "x": 1400,
+      "y": -250,
+      "on": true,
+      "ip": "203.0.113.2",
+      "hostname": "fw-metro"
+    },
+    {
+      "id": "d3",
+      "type": "router",
+      "name": "R-MAN-Core",
+      "x": 1400,
+      "y": -90,
+      "on": true,
+      "ip": "100.64.0.1",
+      "interfaces": [
+        {
+          "name": "WAN",
+          "type": "wan",
+          "ip": "203.0.113.10",
+          "mask": "255.255.255.0"
+        },
+        {
+          "name": "LAN",
+          "type": "lan",
+          "ip": "100.64.0.1",
+          "mask": "255.255.255.0"
+        }
+      ],
+      "nat": true,
+      "hostname": "r-man-core"
+    },
+    {
+      "id": "d4",
+      "type": "router",
+      "name": "R-MAN-Oeste",
+      "x": 720,
+      "y": 80,
+      "on": true,
+      "ip": "100.64.0.2",
+      "interfaces": [
+        {
+          "name": "WAN",
+          "type": "wan",
+          "ip": "100.64.0.2",
+          "mask": "255.255.255.0"
+        },
+        {
+          "name": "LAN",
+          "type": "lan",
+          "ip": "100.64.1.1",
+          "mask": "255.255.255.0"
+        }
+      ],
+      "nat": false,
+      "hostname": "r-man-oeste"
+    },
+    {
+      "id": "d5",
+      "type": "router",
+      "name": "R-MAN-Este",
+      "x": 2080,
+      "y": 80,
+      "on": true,
+      "ip": "100.64.0.3",
+      "interfaces": [
+        {
+          "name": "WAN",
+          "type": "wan",
+          "ip": "100.64.0.3",
+          "mask": "255.255.255.0"
+        },
+        {
+          "name": "LAN",
+          "type": "lan",
+          "ip": "100.64.2.1",
+          "mask": "255.255.255.0"
+        }
+      ],
+      "nat": false,
+      "hostname": "r-man-este"
+    },
+    {
+      "id": "d6",
+      "type": "router",
+      "name": "Router Casa García",
+      "x": 260,
+      "y": 350,
+      "on": true,
+      "ip": "192.168.1.1",
+      "interfaces": [
+        {
+          "name": "WAN",
+          "type": "wan",
+          "ip": "100.64.1.10",
+          "mask": "255.255.255.0"
+        },
+        {
+          "name": "LAN",
+          "type": "lan",
+          "ip": "192.168.1.1",
+          "mask": "255.255.255.0"
+        }
+      ],
+      "nat": true,
+      "embeddedAp": {
+        "ssid": "CasaGarcia_5G",
+        "security": "WPA2",
+        "password": "garcia2024!",
+        "band": "2.4GHz",
+        "channel": 6,
+        "channelWidth": 20,
+        "txPower": 18,
+        "hidden": false,
+        "macFilter": [],
+        "guestSsid": "",
+        "vlan": 1
+      },
+      "hostname": "router-casa-garcia"
+    },
+    {
+      "id": "d7",
+      "type": "pc",
+      "name": "PC Estudio",
+      "x": 110,
+      "y": 500,
+      "on": true,
+      "ipMode": "static",
+      "ip": "192.168.1.20",
+      "mask": "255.255.255.0",
+      "gateway": "192.168.1.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "hostname": "pc-estudio"
+    },
+    {
+      "id": "d8",
+      "type": "printer",
+      "name": "Impresora García",
+      "x": 410,
+      "y": 440,
+      "on": true,
+      "ipMode": "static",
+      "ip": "192.168.1.21",
+      "mask": "255.255.255.0",
+      "gateway": "192.168.1.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "wifiSsid": "CasaGarcia_5G",
+      "wifiPassword": "garcia2024!",
+      "exposedPorts": [
+        {
+          "name": "IPP",
+          "port": 631,
+          "proto": "tcp",
+          "enabled": true
+        }
+      ],
+      "hostname": "impresora-garcia"
+    },
+    {
+      "id": "d9",
+      "type": "phone",
+      "name": "Móvil de Ana",
+      "x": 300,
+      "y": 560,
+      "on": true,
+      "ipMode": "static",
+      "ip": "192.168.1.22",
+      "mask": "255.255.255.0",
+      "gateway": "192.168.1.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "wifiSsid": "CasaGarcia_5G",
+      "wifiPassword": "garcia2024!",
+      "hostname": "movil-de-ana"
+    },
+    {
+      "id": "d10",
+      "type": "headphones",
+      "name": "Audífonos Ana",
+      "x": 390,
+      "y": 610,
+      "on": true,
+      "hostname": "audifonos-ana"
+    },
+    {
+      "id": "d11",
+      "type": "smartwatch",
+      "name": "Reloj Ana",
+      "x": 220,
+      "y": 620,
+      "on": true,
+      "hostname": "reloj-ana"
+    },
+    {
+      "id": "d12",
+      "type": "router",
+      "name": "Router Familia López",
+      "x": 720,
+      "y": 430,
+      "on": true,
+      "ip": "192.168.2.1",
+      "interfaces": [
+        {
+          "name": "WAN",
+          "type": "wan",
+          "ip": "100.64.1.11",
+          "mask": "255.255.255.0"
+        },
+        {
+          "name": "LAN",
+          "type": "lan",
+          "ip": "192.168.2.1",
+          "mask": "255.255.255.0"
+        }
+      ],
+      "nat": true,
+      "embeddedAp": {
+        "ssid": "Familia_Lopez",
+        "security": "WPA3",
+        "password": "lopez#wifi99",
+        "band": "5GHz",
+        "channel": 36,
+        "channelWidth": 80,
+        "txPower": 20,
+        "hidden": false,
+        "macFilter": [],
+        "guestSsid": "",
+        "vlan": 1
+      },
+      "hostname": "router-familia-lopez"
+    },
+    {
+      "id": "d13",
+      "type": "laptop",
+      "name": "Laptop López",
+      "x": 560,
+      "y": 570,
+      "on": true,
+      "ipMode": "static",
+      "ip": "192.168.2.20",
+      "mask": "255.255.255.0",
+      "gateway": "192.168.2.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "wifiSsid": "Familia_Lopez",
+      "wifiPassword": "lopez#wifi99",
+      "hostname": "laptop-lopez"
+    },
+    {
+      "id": "d14",
+      "type": "tablet",
+      "name": "Tablet Sala",
+      "x": 690,
+      "y": 630,
+      "on": true,
+      "ipMode": "static",
+      "ip": "192.168.2.21",
+      "mask": "255.255.255.0",
+      "gateway": "192.168.2.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "wifiSsid": "Familia_Lopez",
+      "wifiPassword": "lopez#wifi99",
+      "hostname": "tablet-sala"
+    },
+    {
+      "id": "d15",
+      "type": "soundbar",
+      "name": "Barra Sala",
+      "x": 610,
+      "y": 680,
+      "on": true,
+      "hostname": "barra-sala"
+    },
+    {
+      "id": "d16",
+      "type": "headphones",
+      "name": "Audífonos López",
+      "x": 760,
+      "y": 690,
+      "on": true,
+      "hostname": "audifonos-lopez"
+    },
+    {
+      "id": "d17",
+      "type": "console",
+      "name": "Consola López",
+      "x": 870,
+      "y": 590,
+      "on": true,
+      "ipMode": "static",
+      "ip": "192.168.2.22",
+      "mask": "255.255.255.0",
+      "gateway": "192.168.2.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "wifiSsid": "Familia_Lopez",
+      "wifiPassword": "lopez#wifi99",
+      "hostname": "consola-lopez"
+    },
+    {
+      "id": "d18",
+      "type": "gamepad",
+      "name": "Mando López",
+      "x": 870,
+      "y": 700,
+      "on": true,
+      "hostname": "mando-lopez"
+    },
+    {
+      "id": "d19",
+      "type": "router",
+      "name": "Router Hogar Ruiz",
+      "x": 1240,
+      "y": 350,
+      "on": true,
+      "ip": "192.168.3.1",
+      "interfaces": [
+        {
+          "name": "WAN",
+          "type": "wan",
+          "ip": "100.64.1.12",
+          "mask": "255.255.255.0"
+        },
+        {
+          "name": "LAN",
+          "type": "lan",
+          "ip": "192.168.3.1",
+          "mask": "255.255.255.0"
+        }
+      ],
+      "nat": true,
+      "embeddedAp": {
+        "ssid": "MiRedHogar",
+        "security": "WPA2",
+        "password": "hogar1234",
+        "band": "2.4GHz",
+        "channel": 11,
+        "channelWidth": 20,
+        "txPower": 18,
+        "hidden": false,
+        "macFilter": [],
+        "guestSsid": "",
+        "vlan": 1
+      },
+      "hostname": "router-hogar-ruiz"
+    },
+    {
+      "id": "d20",
+      "type": "pc",
+      "name": "PC Ruiz",
+      "x": 1390,
+      "y": 480,
+      "on": true,
+      "ipMode": "static",
+      "ip": "192.168.3.20",
+      "mask": "255.255.255.0",
+      "gateway": "192.168.3.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "hostname": "pc-ruiz"
+    },
+    {
+      "id": "d21",
+      "type": "phone",
+      "name": "Móvil de Luis",
+      "x": 1200,
+      "y": 540,
+      "on": true,
+      "ipMode": "static",
+      "ip": "192.168.3.21",
+      "mask": "255.255.255.0",
+      "gateway": "192.168.3.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "wifiSsid": "MiRedHogar",
+      "wifiPassword": "hogar1234",
+      "hostname": "movil-de-luis"
+    },
+    {
+      "id": "d22",
+      "type": "smartwatch",
+      "name": "Reloj Luis",
+      "x": 1110,
+      "y": 590,
+      "on": true,
+      "hostname": "reloj-luis"
+    },
+    {
+      "id": "d23",
+      "type": "soundbar",
+      "name": "Barra Ruiz",
+      "x": 1300,
+      "y": 610,
+      "on": true,
+      "hostname": "barra-ruiz"
+    },
+    {
+      "id": "d24",
+      "type": "router",
+      "name": "Router Café Central",
+      "x": 470,
+      "y": 940,
+      "on": true,
+      "ip": "192.168.50.1",
+      "interfaces": [
+        {
+          "name": "WAN",
+          "type": "wan",
+          "ip": "100.64.1.20",
+          "mask": "255.255.255.0"
+        },
+        {
+          "name": "LAN",
+          "type": "lan",
+          "ip": "192.168.50.1",
+          "mask": "255.255.255.0"
+        }
+      ],
+      "nat": true,
+      "embeddedAp": {
+        "ssid": "Cafe_Internet_Gratis",
+        "security": "Abierta",
+        "password": "",
+        "band": "2.4GHz",
+        "channel": 6,
+        "channelWidth": 20,
+        "txPower": 18,
+        "hidden": false,
+        "macFilter": [],
+        "guestSsid": "",
+        "vlan": 1
+      },
+      "hostname": "router-cafe-central"
+    },
+    {
+      "id": "d25",
+      "type": "laptop",
+      "name": "Laptop Cliente",
+      "x": 330,
+      "y": 1080,
+      "on": true,
+      "ipMode": "static",
+      "ip": "192.168.50.20",
+      "mask": "255.255.255.0",
+      "gateway": "192.168.50.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "wifiSsid": "Cafe_Internet_Gratis",
+      "wifiPassword": "",
+      "hostname": "laptop-cliente"
+    },
+    {
+      "id": "d26",
+      "type": "phone",
+      "name": "Móvil Cliente",
+      "x": 600,
+      "y": 1080,
+      "on": true,
+      "ipMode": "static",
+      "ip": "192.168.50.21",
+      "mask": "255.255.255.0",
+      "gateway": "192.168.50.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "wifiSsid": "Cafe_Internet_Gratis",
+      "wifiPassword": "",
+      "hostname": "movil-cliente"
+    },
+    {
+      "id": "d27",
+      "type": "headphones",
+      "name": "Audífonos Cliente",
+      "x": 600,
+      "y": 1190,
+      "on": true,
+      "hostname": "audifonos-cliente"
+    },
+    {
+      "id": "d28",
+      "type": "router",
+      "name": "Router Oficina A",
+      "x": 1760,
+      "y": 320,
+      "on": true,
+      "ip": "10.10.10.1",
+      "interfaces": [
+        {
+          "name": "WAN",
+          "type": "wan",
+          "ip": "100.64.2.10",
+          "mask": "255.255.255.0"
+        },
+        {
+          "name": "LAN",
+          "type": "lan",
+          "ip": "10.10.10.1",
+          "mask": "255.255.255.0"
+        }
+      ],
+      "nat": true,
+      "hostname": "router-oficina-a"
+    },
+    {
+      "id": "d29",
+      "type": "firewall",
+      "name": "Firewall Oficina A",
+      "x": 1760,
+      "y": 400,
+      "on": true,
+      "ip": "10.10.10.2",
+      "hostname": "firewall-oficina-a"
+    },
+    {
+      "id": "d30",
+      "type": "switch",
+      "name": "Switch Oficina A",
+      "x": 1760,
+      "y": 490,
+      "on": true,
+      "ip": "10.10.10.3",
+      "portCount": 24,
+      "ports": [
+        {
+          "n": 1,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 2,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 3,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 4,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 5,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 6,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 7,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 8,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 9,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 10,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 11,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 12,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 13,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 14,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 15,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 16,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 17,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 18,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 19,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 20,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 21,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 22,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 23,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 24,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        }
+      ],
+      "hostname": "switch-oficina-a"
+    },
+    {
+      "id": "d31",
+      "type": "server",
+      "name": "Servidor Oficina A",
+      "x": 1930,
+      "y": 440,
+      "on": true,
+      "ipMode": "static",
+      "ip": "10.10.10.10",
+      "mask": "255.255.255.0",
+      "gateway": "10.10.10.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "services": [
+        {
+          "name": "HTTP",
+          "port": 80,
+          "proto": "tcp",
+          "enabled": true
+        },
+        {
+          "name": "HTTPS",
+          "port": 443,
+          "proto": "tcp",
+          "enabled": true
+        },
+        {
+          "name": "DNS",
+          "port": 53,
+          "proto": "udp",
+          "enabled": true
+        },
+        {
+          "name": "DHCP",
+          "port": 67,
+          "proto": "udp",
+          "enabled": false
+        },
+        {
+          "name": "FTP",
+          "port": 21,
+          "proto": "tcp",
+          "enabled": true
+        },
+        {
+          "name": "SMTP",
+          "port": 25,
+          "proto": "tcp",
+          "enabled": false
+        },
+        {
+          "name": "DB",
+          "port": 3306,
+          "proto": "tcp",
+          "enabled": true
+        },
+        {
+          "name": "Files",
+          "port": 445,
+          "proto": "tcp",
+          "enabled": true
+        }
+      ],
+      "hostname": "servidor-oficina-a"
+    },
+    {
+      "id": "d32",
+      "type": "pc",
+      "name": "PC Contabilidad",
+      "x": 1590,
+      "y": 550,
+      "on": true,
+      "ipMode": "static",
+      "ip": "10.10.10.20",
+      "mask": "255.255.255.0",
+      "gateway": "10.10.10.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "hostname": "pc-contabilidad"
+    },
+    {
+      "id": "d33",
+      "type": "pc",
+      "name": "PC Gerencia",
+      "x": 1720,
+      "y": 590,
+      "on": true,
+      "ipMode": "static",
+      "ip": "10.10.10.21",
+      "mask": "255.255.255.0",
+      "gateway": "10.10.10.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "hostname": "pc-gerencia"
+    },
+    {
+      "id": "d34",
+      "type": "printer",
+      "name": "Impresora Oficina A",
+      "x": 1900,
+      "y": 580,
+      "on": true,
+      "ipMode": "static",
+      "ip": "10.10.10.22",
+      "mask": "255.255.255.0",
+      "gateway": "10.10.10.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "exposedPorts": [
+        {
+          "name": "IPP",
+          "port": 631,
+          "proto": "tcp",
+          "enabled": true
+        }
+      ],
+      "hostname": "impresora-oficina-a"
+    },
+    {
+      "id": "d35",
+      "type": "router",
+      "name": "Router Oficina B",
+      "x": 2340,
+      "y": 320,
+      "on": true,
+      "ip": "10.10.20.1",
+      "interfaces": [
+        {
+          "name": "WAN",
+          "type": "wan",
+          "ip": "100.64.2.11",
+          "mask": "255.255.255.0"
+        },
+        {
+          "name": "LAN",
+          "type": "lan",
+          "ip": "10.10.20.1",
+          "mask": "255.255.255.0"
+        }
+      ],
+      "nat": true,
+      "hostname": "router-oficina-b"
+    },
+    {
+      "id": "d36",
+      "type": "switch",
+      "name": "Switch Oficina B",
+      "x": 2340,
+      "y": 420,
+      "on": true,
+      "ip": "10.10.20.2",
+      "portCount": 8,
+      "ports": [
+        {
+          "n": 1,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 2,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 3,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 4,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 5,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 6,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 7,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 8,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        }
+      ],
+      "hostname": "switch-oficina-b"
+    },
+    {
+      "id": "d37",
+      "type": "ap",
+      "name": "AP Oficina B",
+      "x": 2460,
+      "y": 500,
+      "on": true,
+      "ip": "10.10.20.3",
+      "ssid": "OficinaB_Corp",
+      "security": "WPA2",
+      "password": "Corp!B2024",
+      "band": "5GHz",
+      "channel": 40,
+      "channelWidth": 80,
+      "txPower": 19,
+      "hidden": false,
+      "macFilter": [],
+      "guestSsid": "",
+      "vlan": 1,
+      "hostname": "ap-oficina-b"
+    },
+    {
+      "id": "d38",
+      "type": "pc",
+      "name": "PC Recepción B",
+      "x": 2190,
+      "y": 510,
+      "on": true,
+      "ipMode": "static",
+      "ip": "10.10.20.20",
+      "mask": "255.255.255.0",
+      "gateway": "10.10.20.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "hostname": "pc-recepcion-b"
+    },
+    {
+      "id": "d39",
+      "type": "laptop",
+      "name": "Laptop Ventas B",
+      "x": 2400,
+      "y": 600,
+      "on": true,
+      "ipMode": "static",
+      "ip": "10.10.20.21",
+      "mask": "255.255.255.0",
+      "gateway": "10.10.20.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "wifiSsid": "OficinaB_Corp",
+      "wifiPassword": "Corp!B2024",
+      "hostname": "laptop-ventas-b"
+    },
+    {
+      "id": "d40",
+      "type": "laptop",
+      "name": "Laptop RRHH B",
+      "x": 2540,
+      "y": 580,
+      "on": true,
+      "ipMode": "static",
+      "ip": "10.10.20.22",
+      "mask": "255.255.255.0",
+      "gateway": "10.10.20.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "wifiSsid": "OficinaB_Corp",
+      "wifiPassword": "Corp!B2024",
+      "hostname": "laptop-rrhh-b"
+    },
+    {
+      "id": "d41",
+      "type": "router",
+      "name": "Router Oficina C",
+      "x": 1900,
+      "y": 890,
+      "on": true,
+      "ip": "10.10.30.1",
+      "interfaces": [
+        {
+          "name": "WAN",
+          "type": "wan",
+          "ip": "100.64.2.12",
+          "mask": "255.255.255.0"
+        },
+        {
+          "name": "LAN",
+          "type": "lan",
+          "ip": "10.10.30.1",
+          "mask": "255.255.255.0"
+        }
+      ],
+      "nat": true,
+      "hostname": "router-oficina-c"
+    },
+    {
+      "id": "d42",
+      "type": "switch",
+      "name": "Switch Oficina C",
+      "x": 1900,
+      "y": 990,
+      "on": true,
+      "ip": "10.10.30.2",
+      "portCount": 8,
+      "ports": [
+        {
+          "n": 1,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 2,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 3,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 4,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 5,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 6,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 7,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 8,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        }
+      ],
+      "hostname": "switch-oficina-c"
+    },
+    {
+      "id": "d43",
+      "type": "ap",
+      "name": "AP Oficina C",
+      "x": 2030,
+      "y": 1060,
+      "on": true,
+      "ip": "10.10.30.3",
+      "ssid": "EmpresaC_WiFi",
+      "security": "WPA2",
+      "password": "empresaC#1",
+      "band": "2.4GHz",
+      "channel": 1,
+      "channelWidth": 20,
+      "txPower": 18,
+      "hidden": false,
+      "macFilter": [],
+      "guestSsid": "",
+      "vlan": 1,
+      "hostname": "ap-oficina-c"
+    },
+    {
+      "id": "d44",
+      "type": "pc",
+      "name": "PC Diseño C",
+      "x": 1750,
+      "y": 1070,
+      "on": true,
+      "ipMode": "static",
+      "ip": "10.10.30.20",
+      "mask": "255.255.255.0",
+      "gateway": "10.10.30.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "hostname": "pc-diseno-c"
+    },
+    {
+      "id": "d45",
+      "type": "printer",
+      "name": "Impresora Oficina C",
+      "x": 1860,
+      "y": 1150,
+      "on": true,
+      "ipMode": "static",
+      "ip": "10.10.30.21",
+      "mask": "255.255.255.0",
+      "gateway": "10.10.30.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "exposedPorts": [
+        {
+          "name": "IPP",
+          "port": 631,
+          "proto": "tcp",
+          "enabled": true
+        }
+      ],
+      "hostname": "impresora-oficina-c"
+    },
+    {
+      "id": "d46",
+      "type": "laptop",
+      "name": "Laptop Soporte C",
+      "x": 2010,
+      "y": 1160,
+      "on": true,
+      "ipMode": "static",
+      "ip": "10.10.30.22",
+      "mask": "255.255.255.0",
+      "gateway": "10.10.30.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "wifiSsid": "EmpresaC_WiFi",
+      "wifiPassword": "empresaC#1",
+      "hostname": "laptop-soporte-c"
+    },
+    {
+      "id": "d47",
+      "type": "router",
+      "name": "Router Escuela",
+      "x": 2520,
+      "y": 850,
+      "on": true,
+      "ip": "172.16.0.1",
+      "interfaces": [
+        {
+          "name": "WAN",
+          "type": "wan",
+          "ip": "100.64.2.20",
+          "mask": "255.255.255.0"
+        },
+        {
+          "name": "LAN",
+          "type": "lan",
+          "ip": "172.16.0.1",
+          "mask": "255.255.255.0"
+        }
+      ],
+      "nat": true,
+      "hostname": "router-escuela"
+    },
+    {
+      "id": "d48",
+      "type": "firewall",
+      "name": "Firewall Escuela",
+      "x": 2520,
+      "y": 930,
+      "on": true,
+      "ip": "172.16.0.2",
+      "hostname": "firewall-escuela"
+    },
+    {
+      "id": "d49",
+      "type": "switch",
+      "name": "Switch Núcleo Escuela",
+      "x": 2520,
+      "y": 1010,
+      "on": true,
+      "ip": "172.16.0.3",
+      "portCount": 24,
+      "ports": [
+        {
+          "n": 1,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 2,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 3,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 4,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 5,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 6,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 7,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 8,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 9,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 10,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 11,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 12,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 13,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 14,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 15,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 16,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 17,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 18,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 19,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 20,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 21,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 22,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 23,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        },
+        {
+          "n": 24,
+          "vlan": 1,
+          "mode": "access",
+          "speed": "1G",
+          "duplex": "full",
+          "poe": false
+        }
+      ],
+      "hostname": "switch-nucleo-escuela"
+    },
+    {
+      "id": "d50",
+      "type": "server",
+      "name": "Servidor Escuela",
+      "x": 2710,
+      "y": 960,
+      "on": true,
+      "ipMode": "static",
+      "ip": "172.16.0.10",
+      "mask": "255.255.255.0",
+      "gateway": "172.16.0.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "services": [
+        {
+          "name": "HTTP",
+          "port": 80,
+          "proto": "tcp",
+          "enabled": true
+        },
+        {
+          "name": "HTTPS",
+          "port": 443,
+          "proto": "tcp",
+          "enabled": true
+        },
+        {
+          "name": "DNS",
+          "port": 53,
+          "proto": "udp",
+          "enabled": true
+        },
+        {
+          "name": "DHCP",
+          "port": 67,
+          "proto": "udp",
+          "enabled": true
+        },
+        {
+          "name": "FTP",
+          "port": 21,
+          "proto": "tcp",
+          "enabled": false
+        },
+        {
+          "name": "SMTP",
+          "port": 25,
+          "proto": "tcp",
+          "enabled": false
+        },
+        {
+          "name": "DB",
+          "port": 3306,
+          "proto": "tcp",
+          "enabled": false
+        },
+        {
+          "name": "Files",
+          "port": 445,
+          "proto": "tcp",
+          "enabled": true
+        }
+      ],
+      "hostname": "servidor-escuela"
+    },
+    {
+      "id": "d51",
+      "type": "ap",
+      "name": "AP Biblioteca",
+      "x": 2600,
+      "y": 1090,
+      "on": true,
+      "ip": "172.16.0.4",
+      "ssid": "Escuela_Alumnos",
+      "security": "WPA2",
+      "password": "alumnos2024",
+      "band": "2.4GHz",
+      "channel": 6,
+      "channelWidth": 20,
+      "txPower": 20,
+      "hidden": false,
+      "macFilter": [],
+      "guestSsid": "Escuela_Invitados",
+      "vlan": 1,
+      "hostname": "ap-biblioteca"
+    },
+    {
+      "id": "d52",
+      "type": "pc",
+      "name": "PC Aula 1",
+      "x": 2300,
+      "y": 1060,
+      "on": true,
+      "ipMode": "static",
+      "ip": "172.16.0.20",
+      "mask": "255.255.255.0",
+      "gateway": "172.16.0.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "hostname": "pc-aula-1"
+    },
+    {
+      "id": "d53",
+      "type": "pc",
+      "name": "PC Aula 2",
+      "x": 2400,
+      "y": 1110,
+      "on": true,
+      "ipMode": "static",
+      "ip": "172.16.0.21",
+      "mask": "255.255.255.0",
+      "gateway": "172.16.0.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "hostname": "pc-aula-2"
+    },
+    {
+      "id": "d54",
+      "type": "pc",
+      "name": "PC Laboratorio",
+      "x": 2500,
+      "y": 1140,
+      "on": true,
+      "ipMode": "static",
+      "ip": "172.16.0.22",
+      "mask": "255.255.255.0",
+      "gateway": "172.16.0.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "hostname": "pc-laboratorio"
+    },
+    {
+      "id": "d55",
+      "type": "printer",
+      "name": "Impresora Escuela",
+      "x": 2300,
+      "y": 1160,
+      "on": true,
+      "ipMode": "static",
+      "ip": "172.16.0.23",
+      "mask": "255.255.255.0",
+      "gateway": "172.16.0.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "exposedPorts": [
+        {
+          "name": "IPP",
+          "port": 631,
+          "proto": "tcp",
+          "enabled": true
+        }
+      ],
+      "hostname": "impresora-escuela"
+    },
+    {
+      "id": "d56",
+      "type": "laptop",
+      "name": "Laptop Profesor",
+      "x": 2700,
+      "y": 1110,
+      "on": true,
+      "ipMode": "static",
+      "ip": "172.16.0.30",
+      "mask": "255.255.255.0",
+      "gateway": "172.16.0.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "wifiSsid": "Escuela_Alumnos",
+      "wifiPassword": "alumnos2024",
+      "hostname": "laptop-profesor"
+    },
+    {
+      "id": "d57",
+      "type": "tablet",
+      "name": "Tablet Alumno",
+      "x": 2580,
+      "y": 1170,
+      "on": true,
+      "ipMode": "static",
+      "ip": "172.16.0.31",
+      "mask": "255.255.255.0",
+      "gateway": "172.16.0.1",
+      "dns": [
+        "8.8.8.8",
+        "1.1.1.1"
+      ],
+      "mtu": 1500,
+      "wifiSsid": "Escuela_Alumnos",
+      "wifiPassword": "alumnos2024",
+      "hostname": "tablet-alumno"
+    }
+  ],
+  "links": [
+    {
+      "id": "l1",
+      "from": "d1",
+      "to": "d2",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l2",
+      "from": "d2",
+      "to": "d3",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l3",
+      "from": "d3",
+      "to": "d4",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l4",
+      "from": "d3",
+      "to": "d5",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l5",
+      "from": "d4",
+      "to": "d6",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l6",
+      "from": "d6",
+      "to": "d7",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l7",
+      "from": "d6",
+      "to": "d8",
+      "kind": "wireless",
+      "status": "up",
+      "bandwidthMbps": 300,
+      "latencyMs": 4,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l8",
+      "from": "d6",
+      "to": "d9",
+      "kind": "wireless",
+      "status": "up",
+      "bandwidthMbps": 300,
+      "latencyMs": 4,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l9",
+      "from": "d9",
+      "to": "d10",
+      "kind": "bluetooth",
+      "status": "up",
+      "bandwidthMbps": 3,
+      "latencyMs": 8,
+      "lossPct": 0,
+      "mtu": 1021
+    },
+    {
+      "id": "l10",
+      "from": "d9",
+      "to": "d11",
+      "kind": "bluetooth",
+      "status": "up",
+      "bandwidthMbps": 3,
+      "latencyMs": 8,
+      "lossPct": 0,
+      "mtu": 1021
+    },
+    {
+      "id": "l11",
+      "from": "d4",
+      "to": "d12",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l12",
+      "from": "d12",
+      "to": "d13",
+      "kind": "wireless",
+      "status": "up",
+      "bandwidthMbps": 300,
+      "latencyMs": 4,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l13",
+      "from": "d12",
+      "to": "d14",
+      "kind": "wireless",
+      "status": "up",
+      "bandwidthMbps": 300,
+      "latencyMs": 4,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l14",
+      "from": "d14",
+      "to": "d15",
+      "kind": "bluetooth",
+      "status": "up",
+      "bandwidthMbps": 3,
+      "latencyMs": 8,
+      "lossPct": 0,
+      "mtu": 1021
+    },
+    {
+      "id": "l15",
+      "from": "d14",
+      "to": "d16",
+      "kind": "bluetooth",
+      "status": "up",
+      "bandwidthMbps": 3,
+      "latencyMs": 8,
+      "lossPct": 0,
+      "mtu": 1021
+    },
+    {
+      "id": "l16",
+      "from": "d12",
+      "to": "d17",
+      "kind": "wireless",
+      "status": "up",
+      "bandwidthMbps": 300,
+      "latencyMs": 4,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l17",
+      "from": "d17",
+      "to": "d18",
+      "kind": "bluetooth",
+      "status": "up",
+      "bandwidthMbps": 3,
+      "latencyMs": 8,
+      "lossPct": 0,
+      "mtu": 1021
+    },
+    {
+      "id": "l18",
+      "from": "d4",
+      "to": "d19",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l19",
+      "from": "d19",
+      "to": "d20",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l20",
+      "from": "d19",
+      "to": "d21",
+      "kind": "wireless",
+      "status": "up",
+      "bandwidthMbps": 300,
+      "latencyMs": 4,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l21",
+      "from": "d21",
+      "to": "d22",
+      "kind": "bluetooth",
+      "status": "up",
+      "bandwidthMbps": 3,
+      "latencyMs": 8,
+      "lossPct": 0,
+      "mtu": 1021
+    },
+    {
+      "id": "l22",
+      "from": "d21",
+      "to": "d23",
+      "kind": "bluetooth",
+      "status": "up",
+      "bandwidthMbps": 3,
+      "latencyMs": 8,
+      "lossPct": 0,
+      "mtu": 1021
+    },
+    {
+      "id": "l23",
+      "from": "d4",
+      "to": "d24",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l24",
+      "from": "d24",
+      "to": "d25",
+      "kind": "wireless",
+      "status": "up",
+      "bandwidthMbps": 300,
+      "latencyMs": 4,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l25",
+      "from": "d24",
+      "to": "d26",
+      "kind": "wireless",
+      "status": "up",
+      "bandwidthMbps": 300,
+      "latencyMs": 4,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l26",
+      "from": "d26",
+      "to": "d27",
+      "kind": "bluetooth",
+      "status": "up",
+      "bandwidthMbps": 3,
+      "latencyMs": 8,
+      "lossPct": 0,
+      "mtu": 1021
+    },
+    {
+      "id": "l27",
+      "from": "d5",
+      "to": "d28",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l28",
+      "from": "d28",
+      "to": "d29",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l29",
+      "from": "d29",
+      "to": "d30",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l30",
+      "from": "d30",
+      "to": "d31",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l31",
+      "from": "d30",
+      "to": "d32",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l32",
+      "from": "d30",
+      "to": "d33",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l33",
+      "from": "d30",
+      "to": "d34",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l34",
+      "from": "d5",
+      "to": "d35",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l35",
+      "from": "d35",
+      "to": "d36",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l36",
+      "from": "d36",
+      "to": "d37",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l37",
+      "from": "d36",
+      "to": "d38",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l38",
+      "from": "d37",
+      "to": "d39",
+      "kind": "wireless",
+      "status": "up",
+      "bandwidthMbps": 300,
+      "latencyMs": 4,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l39",
+      "from": "d37",
+      "to": "d40",
+      "kind": "wireless",
+      "status": "up",
+      "bandwidthMbps": 300,
+      "latencyMs": 4,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l40",
+      "from": "d5",
+      "to": "d41",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l41",
+      "from": "d41",
+      "to": "d42",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l42",
+      "from": "d42",
+      "to": "d43",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l43",
+      "from": "d42",
+      "to": "d44",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l44",
+      "from": "d42",
+      "to": "d45",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l45",
+      "from": "d43",
+      "to": "d46",
+      "kind": "wireless",
+      "status": "up",
+      "bandwidthMbps": 300,
+      "latencyMs": 4,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l46",
+      "from": "d5",
+      "to": "d47",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l47",
+      "from": "d47",
+      "to": "d48",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l48",
+      "from": "d48",
+      "to": "d49",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l49",
+      "from": "d49",
+      "to": "d50",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l50",
+      "from": "d49",
+      "to": "d51",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l51",
+      "from": "d49",
+      "to": "d52",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l52",
+      "from": "d49",
+      "to": "d53",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l53",
+      "from": "d49",
+      "to": "d54",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l54",
+      "from": "d49",
+      "to": "d55",
+      "kind": "wired",
+      "status": "up",
+      "bandwidthMbps": 1000,
+      "latencyMs": 1,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l55",
+      "from": "d51",
+      "to": "d56",
+      "kind": "wireless",
+      "status": "up",
+      "bandwidthMbps": 300,
+      "latencyMs": 4,
+      "lossPct": 0,
+      "mtu": 1500
+    },
+    {
+      "id": "l56",
+      "from": "d51",
+      "to": "d57",
+      "kind": "wireless",
+      "status": "up",
+      "bandwidthMbps": 300,
+      "latencyMs": 4,
+      "lossPct": 0,
+      "mtu": 1500
+    }
+  ],
+  "view": {
+    "x": 0,
+    "y": 0,
+    "scale": 1
+  }
+}

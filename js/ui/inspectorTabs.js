@@ -877,6 +877,14 @@ NF.tabs = NF.tabs || {};
         if ($("#fPub")) $("#fPub").addEventListener("input", e => { d.publicBlock = e.target.value; NF.devices.update(d); });
     }
 
+    /* La etiqueta del router en el lienzo (d.ip) refleja su IP LAN.
+       Se mantiene sincronizada al editar las interfaces. */
+    function syncRouterIp(d) {
+        const ifs = d.interfaces || [];
+        const lan = ifs.find(i => i.type === "lan") || ifs.find(i => i.type !== "wan") || ifs[0];
+        if (lan) d.ip = lan.ip;
+    }
+
     function bindRouterNet(d) {
         if (d.type !== "router") return;
         if ($("#fDefRoute")) $("#fDefRoute").addEventListener("input", e => { d.defaultRoute = e.target.value; NF.devices.update(d); });
@@ -886,16 +894,16 @@ NF.tabs = NF.tabs || {};
             d.interfaces[+el.dataset.ifName].name = e.target.value; NF.devices.update(d);
         }));
         insp.querySelectorAll("[data-if-type]").forEach(el => el.addEventListener("change", e => {
-            d.interfaces[+el.dataset.ifType].type = e.target.value; NF.devices.update(d); NF.inspector.render();
+            d.interfaces[+el.dataset.ifType].type = e.target.value; syncRouterIp(d); NF.devices.update(d); NF.inspector.render();
         }));
         insp.querySelectorAll("[data-if-ip]").forEach(el => el.addEventListener("input", e => {
-            d.interfaces[+el.dataset.ifIp].ip = e.target.value; NF.devices.update(d);
+            d.interfaces[+el.dataset.ifIp].ip = e.target.value; syncRouterIp(d); NF.devices.update(d);
         }));
         insp.querySelectorAll("[data-if-mask]").forEach(el => el.addEventListener("input", e => {
             d.interfaces[+el.dataset.ifMask].mask = e.target.value; NF.devices.update(d);
         }));
         insp.querySelectorAll("[data-iface-rm]").forEach(el => el.addEventListener("click", () => {
-            d.interfaces.splice(+el.dataset.ifaceRm, 1); NF.devices.update(d); NF.inspector.render();
+            d.interfaces.splice(+el.dataset.ifaceRm, 1); syncRouterIp(d); NF.devices.update(d); NF.inspector.render();
         }));
         if ($("#addIface")) $("#addIface").addEventListener("click", () => {
             d.interfaces.push({ name: "IF" + (d.interfaces.length + 1), type: "lan", ip: "", mask: "255.255.255.0" });
